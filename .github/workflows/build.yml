@@ -1,0 +1,52 @@
+name: Build macno
+
+# Builds installers for Windows and macOS on their native runners.
+# A macOS .dmg can only be produced on a macOS machine, so the Mac build
+# runs on GitHub's macos-latest runner. Triggered by pushing a version tag
+# (e.g. v1.0.0) or manually from the Actions tab (Run workflow).
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: --win
+            artifact: macno-windows
+          - os: macos-latest
+            args: --mac
+            artifact: macno-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npx electron-builder ${{ matrix.args }}
+        env:
+          # Skip code signing — produces unsigned installers (fine for local use).
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+          if-no-files-found: ignore

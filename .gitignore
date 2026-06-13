@@ -1,0 +1,23 @@
+# Dependencies (electron binary is ~140MB — never commit)
+node_modules/
+
+# Build output
+release/
+dist/
+out/
+
+# Note: assets/icon.{svg,png,ico,icns} and assets/screenshot.png ARE committed —
+# they're needed at build time and for the README. Regenerate icons with
+# `npm run make-icons`.
+
+# Logs & temp
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor / OS
+.vscode/
+.idea/
+
+# Local launch config for the preview tool
+.claude/

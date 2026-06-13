@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>macno</title>
+  <link rel="stylesheet" href="../node_modules/vditor/dist/index.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div id="sidebar-tabs">
+        <button class="tab-btn active" data-tab="outline" title="Outline (Ctrl+Shift+1)">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            <path d="M2 3h12v1.5H2zm2 3.5h8v1.5H4zm2 3.5h4v1.5H6z"/>
+          </svg>
+        </button>
+        <button class="tab-btn" data-tab="recent" title="Recent Files (Ctrl+Shift+2)">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zm.75 2.5v3.19l2.53 2.53-1.06 1.06-2.97-2.97V5h1.5z"/>
+          </svg>
+        </button>
+        <button class="tab-btn" data-tab="files" title="Files (Ctrl+Shift+3)">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            <path d="M1 2.5A1.5 1.5 0 012.5 1H7l2 2h4.5A1.5 1.5 0 0115 4.5v8a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13V2.5zM2.5 2.5v10.5h11V4.5H8.5L6.5 2.5H2.5z"/>
+          </svg>
+        </button>
+        <div class="tab-spacer"></div>
+        <button id="btn-new-file" title="New File" class="icon-btn">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            <path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="sidebar-content">
+        <!-- Outline panel -->
+        <div class="panel active" id="panel-outline">
+          <div class="panel-header">Outline</div>
+          <div id="outline-tree"></div>
+        </div>
+
+        <!-- Recent panel -->
+        <div class="panel" id="panel-recent">
+          <div class="panel-header">Recent Files</div>
+          <div id="recent-list"></div>
+        </div>
+
+        <!-- Files panel -->
+        <div class="panel" id="panel-files">
+          <div class="panel-header">
+            <span id="folder-name">No Folder</span>
+            <button id="btn-open-folder" class="panel-action" title="Open Folder">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+                <path d="M1 2.5A1.5 1.5 0 012.5 1H7l2 2h4.5A1.5 1.5 0 0115 4.5v8a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13V2.5z"/>
+              </svg>
+            </button>
+          </div>
+          <div id="file-tree"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Resize handle -->
+    <div id="resize-handle"></div>
+
+    <!-- Main editor area -->
+    <main id="main">
+      <!-- Editor wrapper for centering -->
+      <div id="editor-wrapper">
+        <div id="editor"></div>
+      </div>
+
+      <!-- Status bar -->
+      <footer id="status-bar">
+        <span id="status-file">Untitled</span>
+        <div id="status-right">
+          <span id="status-words">0 words</span>
+          <span id="status-chars">0 chars</span>
+          <span id="status-mode" class="mode-badge">WYSIWYG</span>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Find/Replace bar -->
+  <div id="find-bar" class="hidden">
+    <div id="find-bar-inner">
+      <input id="find-input" type="text" placeholder="Find…" spellcheck="false">
+      <input id="replace-input" type="text" placeholder="Replace…" spellcheck="false" class="hidden">
+      <div id="find-controls">
+        <button id="find-prev" title="Previous">↑</button>
+        <button id="find-next" title="Next">↓</button>
+        <button id="replace-one" class="hidden" title="Replace">Replace</button>
+        <button id="replace-all" class="hidden" title="Replace All">All</button>
+        <span id="find-count"></span>
+        <button id="find-close" title="Close">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../node_modules/vditor/dist/index.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

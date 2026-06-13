@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>macno · Two Books M</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #E8E6E2;
+    font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    padding: 60px 40px 80px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #AAA;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .tagline {
+    text-align: center;
+    font-size: 13px;
+    color: #BBB;
+    margin-bottom: 56px;
+    letter-spacing: .02em;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto 56px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 36px 14px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.07), 0 0 0 1px rgba(0,0,0,.04);
+    cursor: pointer;
+    transition: transform .2s, box-shadow .2s;
+  }
+  .card:hover { transform: translateY(-6px); box-shadow: 0 14px 40px rgba(0,0,0,.13); }
+
+  .sizes {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .meta { text-align: center; }
+  .num  { font-size: 10px; color: #CCC; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
+  .name { font-size: 14px; font-weight: 650; color: #1a1a1a; margin-bottom: 4px; }
+  .desc { font-size: 11px; color: #BBB; line-height: 1.65; }
+
+  /* strips */
+  .label {
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #BBB;
+    margin: 0 auto 14px;
+  }
+  .strip {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    padding: 18px 28px;
+    max-width: 1100px;
+    margin: 0 auto 20px;
+  }
+  .strip.dark  { background: #1a1a1a; }
+  .strip.light { background: #F5F3EF; border: 1px solid #E0DDD8; }
+  .strip svg   { border-radius: 12px; display: block; }
+</style>
+</head>
+<body>
+
+<h1>macno · Logo</h1>
+<p class="tagline">俯视两本书 · 并列成 M · 5 种整体配色</p>
+
+<div class="grid">
+
+  <!-- ═══════════════════════════
+       A  Indigo Night  藏蓝书房
+  ═══════════════════════════ -->
+  <div class="card">
+    <div class="sizes">
+
+      <!-- 96px -->
+      <svg width="96" height="96" viewBox="0 0 160 160">
+        <defs>
+          <linearGradient id="bgA" x1="0" y1="0" x2=".6" y2="1">
+            <stop offset="0%" stop-color="#1D2B4F"/>
+            <stop offset="100%" stop-color="#111828"/>
+          </linearGradient>
+          <clipPath id="lpA"><polygon points="36,22 80,78 80,82 36,138"/></clipPath>
+          <clipPath id="rpA"><polygon points="80,78 124,22 124,138 80,82"/></clipPath>
+        </defs>
+        <rect width="160" height="160" rx="34" fill="url(#bgA)"/>
+        <!-- left cover -->
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#3D5EA0"/>
+        <rect x="32" y="22" width="3" height="116" rx="1.5" fill="#4D6EB0" opacity=".7"/>
+        <!-- left pages -->
+        <polygon points="36,22 80,78 80,82 36,138" fill="#B8C8EC"/>
+        <g clip-path="url(#lpA)" opacity=".28">
+          <line x1="10" y1="38"  x2="90" y2="38"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="10" y1="52"  x2="90" y2="52"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="10" y1="66"  x2="90" y2="66"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="10" y1="80"  x2="90" y2="80"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="10" y1="94"  x2="90" y2="94"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="10" y1="108" x2="90" y2="108" stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="10" y1="122" x2="90" y2="122" stroke="#2040A0" stroke-width="2.5"/>
+        </g>
+        <!-- right pages -->
+        <polygon points="80,78 124,22 124,138 80,82" fill="#C8D6F0"/>
+        <g clip-path="url(#rpA)" opacity=".28">
+          <line x1="70" y1="38"  x2="150" y2="38"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="70" y1="52"  x2="150" y2="52"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="70" y1="66"  x2="150" y2="66"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="70" y1="80"  x2="150" y2="80"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="70" y1="94"  x2="150" y2="94"  stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="70" y1="108" x2="150" y2="108" stroke="#2040A0" stroke-width="2.5"/>
+          <line x1="70" y1="122" x2="150" y2="122" stroke="#2040A0" stroke-width="2.5"/>
+        </g>
+        <!-- right cover -->
+        <rect x="125" y="22" width="22" height="116" rx="5" fill="#4A6AB0"/>
+        <rect x="125" y="22" width="3"  height="116" rx="1.5" fill="#3A5AA0" opacity=".7"/>
+        <!-- valley highlight -->
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#E8EEFF" opacity=".6"/>
+      </svg>
+
+      <!-- 40px -->
+      <svg width="40" height="40" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgA)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#3D5EA0"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#B8C8EC"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#C8D6F0"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#4A6AB0"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#E8EEFF" opacity=".5"/>
+      </svg>
+
+      <!-- 22px -->
+      <svg width="22" height="22" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgA)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#3D5EA0"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#B8C8EC"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#C8D6F0"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#4A6AB0"/>
+      </svg>
+    </div>
+    <div class="meta">
+      <div class="num">A</div>
+      <div class="name">Indigo Night</div>
+      <div class="desc">藏蓝书房<br>冷静 · 专业 · 夜读感</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════
+       B  Forest Tome  林间书斋
+  ═══════════════════════════ -->
+  <div class="card">
+    <div class="sizes">
+      <svg width="96" height="96" viewBox="0 0 160 160">
+        <defs>
+          <linearGradient id="bgB" x1="0" y1="0" x2=".6" y2="1">
+            <stop offset="0%" stop-color="#162818"/>
+            <stop offset="100%" stop-color="#0C1A0E"/>
+          </linearGradient>
+          <clipPath id="lpB"><polygon points="36,22 80,78 80,82 36,138"/></clipPath>
+          <clipPath id="rpB"><polygon points="80,78 124,22 124,138 80,82"/></clipPath>
+        </defs>
+        <rect width="160" height="160" rx="34" fill="url(#bgB)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#2E6A44"/>
+        <rect x="32" y="22" width="3"  height="116" rx="1.5" fill="#3A7A50" opacity=".7"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#B0D8BC"/>
+        <g clip-path="url(#lpB)" opacity=".25">
+          <line x1="10" y1="38"  x2="90" y2="38"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="10" y1="52"  x2="90" y2="52"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="10" y1="66"  x2="90" y2="66"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="10" y1="80"  x2="90" y2="80"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="10" y1="94"  x2="90" y2="94"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="10" y1="108" x2="90" y2="108" stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="10" y1="122" x2="90" y2="122" stroke="#1A5030" stroke-width="2.5"/>
+        </g>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#BEE0C8"/>
+        <g clip-path="url(#rpB)" opacity=".25">
+          <line x1="70" y1="38"  x2="150" y2="38"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="70" y1="52"  x2="150" y2="52"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="70" y1="66"  x2="150" y2="66"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="70" y1="80"  x2="150" y2="80"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="70" y1="94"  x2="150" y2="94"  stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="70" y1="108" x2="150" y2="108" stroke="#1A5030" stroke-width="2.5"/>
+          <line x1="70" y1="122" x2="150" y2="122" stroke="#1A5030" stroke-width="2.5"/>
+        </g>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#38784E"/>
+        <rect x="124" y="22" width="3"  height="116" rx="1.5" fill="#2A6840" opacity=".7"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#D8F0DC" opacity=".55"/>
+      </svg>
+      <svg width="40" height="40" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgB)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#2E6A44"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#B0D8BC"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#BEE0C8"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#38784E"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#D8F0DC" opacity=".5"/>
+      </svg>
+      <svg width="22" height="22" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgB)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#2E6A44"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#B0D8BC"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#BEE0C8"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#38784E"/>
+      </svg>
+    </div>
+    <div class="meta">
+      <div class="num">B</div>
+      <div class="name">Forest Tome</div>
+      <div class="desc">林间书斋<br>自然 · 安静 · 草木气息</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════
+       C  Cognac Leather  皮面书籍
+  ═══════════════════════════ -->
+  <div class="card">
+    <div class="sizes">
+      <svg width="96" height="96" viewBox="0 0 160 160">
+        <defs>
+          <linearGradient id="bgC" x1="0" y1="0" x2=".6" y2="1">
+            <stop offset="0%" stop-color="#1E1208"/>
+            <stop offset="100%" stop-color="#120B04"/>
+          </linearGradient>
+          <clipPath id="lpC"><polygon points="36,22 80,78 80,82 36,138"/></clipPath>
+          <clipPath id="rpC"><polygon points="80,78 124,22 124,138 80,82"/></clipPath>
+        </defs>
+        <rect width="160" height="160" rx="34" fill="url(#bgC)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#904E24"/>
+        <rect x="32" y="22" width="3"  height="116" rx="1.5" fill="#A86030" opacity=".7"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#F0D8B8"/>
+        <g clip-path="url(#lpC)" opacity=".22">
+          <line x1="10" y1="38"  x2="90" y2="38"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="10" y1="52"  x2="90" y2="52"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="10" y1="66"  x2="90" y2="66"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="10" y1="80"  x2="90" y2="80"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="10" y1="94"  x2="90" y2="94"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="10" y1="108" x2="90" y2="108" stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="10" y1="122" x2="90" y2="122" stroke="#7A3810" stroke-width="2.5"/>
+        </g>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#F8E4C4"/>
+        <g clip-path="url(#rpC)" opacity=".22">
+          <line x1="70" y1="38"  x2="150" y2="38"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="70" y1="52"  x2="150" y2="52"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="70" y1="66"  x2="150" y2="66"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="70" y1="80"  x2="150" y2="80"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="70" y1="94"  x2="150" y2="94"  stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="70" y1="108" x2="150" y2="108" stroke="#7A3810" stroke-width="2.5"/>
+          <line x1="70" y1="122" x2="150" y2="122" stroke="#7A3810" stroke-width="2.5"/>
+        </g>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#A85C2C"/>
+        <rect x="124" y="22" width="3"  height="116" rx="1.5" fill="#904E24" opacity=".7"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#FFF0D8" opacity=".6"/>
+      </svg>
+      <svg width="40" height="40" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgC)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#904E24"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#F0D8B8"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#F8E4C4"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#A85C2C"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#FFF0D8" opacity=".55"/>
+      </svg>
+      <svg width="22" height="22" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgC)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#904E24"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#F0D8B8"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#F8E4C4"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#A85C2C"/>
+      </svg>
+    </div>
+    <div class="meta">
+      <div class="num">C</div>
+      <div class="name">Cognac Leather</div>
+      <div class="desc">皮面书籍<br>温润 · 复古 · 图书馆气质</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════
+       D  Slate & Paper  石板宣纸
+  ═══════════════════════════ -->
+  <div class="card">
+    <div class="sizes">
+      <svg width="96" height="96" viewBox="0 0 160 160">
+        <defs>
+          <linearGradient id="bgD" x1="0" y1="0" x2=".6" y2="1">
+            <stop offset="0%" stop-color="#1E2228"/>
+            <stop offset="100%" stop-color="#141820"/>
+          </linearGradient>
+          <clipPath id="lpD"><polygon points="36,22 80,78 80,82 36,138"/></clipPath>
+          <clipPath id="rpD"><polygon points="80,78 124,22 124,138 80,82"/></clipPath>
+        </defs>
+        <rect width="160" height="160" rx="34" fill="url(#bgD)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#4A5668"/>
+        <rect x="32" y="22" width="3"  height="116" rx="1.5" fill="#5A6678" opacity=".7"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#DDE2EA"/>
+        <g clip-path="url(#lpD)" opacity=".2">
+          <line x1="10" y1="38"  x2="90" y2="38"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="10" y1="52"  x2="90" y2="52"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="10" y1="66"  x2="90" y2="66"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="10" y1="80"  x2="90" y2="80"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="10" y1="94"  x2="90" y2="94"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="10" y1="108" x2="90" y2="108" stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="10" y1="122" x2="90" y2="122" stroke="#2A3448" stroke-width="2.5"/>
+        </g>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#E8ECF2"/>
+        <g clip-path="url(#rpD)" opacity=".2">
+          <line x1="70" y1="38"  x2="150" y2="38"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="70" y1="52"  x2="150" y2="52"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="70" y1="66"  x2="150" y2="66"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="70" y1="80"  x2="150" y2="80"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="70" y1="94"  x2="150" y2="94"  stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="70" y1="108" x2="150" y2="108" stroke="#2A3448" stroke-width="2.5"/>
+          <line x1="70" y1="122" x2="150" y2="122" stroke="#2A3448" stroke-width="2.5"/>
+        </g>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#565E6E"/>
+        <rect x="124" y="22" width="3"  height="116" rx="1.5" fill="#4A5668" opacity=".7"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4F6FA" opacity=".7"/>
+      </svg>
+      <svg width="40" height="40" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgD)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#4A5668"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#DDE2EA"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#E8ECF2"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#565E6E"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4F6FA" opacity=".6"/>
+      </svg>
+      <svg width="22" height="22" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgD)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#4A5668"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#DDE2EA"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#E8ECF2"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#565E6E"/>
+      </svg>
+    </div>
+    <div class="meta">
+      <div class="num">D</div>
+      <div class="name">Slate & Paper</div>
+      <div class="desc">石板宣纸<br>极简 · 百搭 · 现代感</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════
+       E  Plum Dusk  暮紫书阁
+  ═══════════════════════════ -->
+  <div class="card">
+    <div class="sizes">
+      <svg width="96" height="96" viewBox="0 0 160 160">
+        <defs>
+          <linearGradient id="bgE" x1="0" y1="0" x2=".6" y2="1">
+            <stop offset="0%" stop-color="#1C1028"/>
+            <stop offset="100%" stop-color="#110A1A"/>
+          </linearGradient>
+          <clipPath id="lpE"><polygon points="36,22 80,78 80,82 36,138"/></clipPath>
+          <clipPath id="rpE"><polygon points="80,78 124,22 124,138 80,82"/></clipPath>
+        </defs>
+        <rect width="160" height="160" rx="34" fill="url(#bgE)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#6A3880"/>
+        <rect x="32" y="22" width="3"  height="116" rx="1.5" fill="#7A4890" opacity=".7"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#DCC8EC"/>
+        <g clip-path="url(#lpE)" opacity=".24">
+          <line x1="10" y1="38"  x2="90" y2="38"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="10" y1="52"  x2="90" y2="52"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="10" y1="66"  x2="90" y2="66"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="10" y1="80"  x2="90" y2="80"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="10" y1="94"  x2="90" y2="94"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="10" y1="108" x2="90" y2="108" stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="10" y1="122" x2="90" y2="122" stroke="#4A1860" stroke-width="2.5"/>
+        </g>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#E8D4F4"/>
+        <g clip-path="url(#rpE)" opacity=".24">
+          <line x1="70" y1="38"  x2="150" y2="38"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="70" y1="52"  x2="150" y2="52"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="70" y1="66"  x2="150" y2="66"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="70" y1="80"  x2="150" y2="80"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="70" y1="94"  x2="150" y2="94"  stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="70" y1="108" x2="150" y2="108" stroke="#4A1860" stroke-width="2.5"/>
+          <line x1="70" y1="122" x2="150" y2="122" stroke="#4A1860" stroke-width="2.5"/>
+        </g>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#7A4890"/>
+        <rect x="124" y="22" width="3"  height="116" rx="1.5" fill="#6A3880" opacity=".7"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4E8FF" opacity=".65"/>
+      </svg>
+      <svg width="40" height="40" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgE)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#6A3880"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#DCC8EC"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#E8D4F4"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#7A4890"/>
+        <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4E8FF" opacity=".6"/>
+      </svg>
+      <svg width="22" height="22" viewBox="0 0 160 160">
+        <rect width="160" height="160" rx="34" fill="url(#bgE)"/>
+        <rect x="13" y="22" width="23" height="116" rx="5" fill="#6A3880"/>
+        <polygon points="36,22 80,78 80,82 36,138" fill="#DCC8EC"/>
+        <polygon points="80,78 124,22 124,138 80,82" fill="#E8D4F4"/>
+        <rect x="124" y="22" width="23" height="116" rx="5" fill="#7A4890"/>
+      </svg>
+    </div>
+    <div class="meta">
+      <div class="num">E</div>
+      <div class="name">Plum Dusk</div>
+      <div class="desc">暮紫书阁<br>神秘 · 典雅 · 人文气质</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 深色背景效果 -->
+<p class="label">— 深色桌面 Taskbar —</p>
+<div class="strip dark">
+  <!-- A 56px -->
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgA)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#3D5EA0"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#B8C8EC"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#C8D6F0"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#4A6AB0"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#E8EEFF" opacity=".55"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgB)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#2E6A44"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#B0D8BC"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#BEE0C8"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#38784E"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#D8F0DC" opacity=".5"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgC)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#904E24"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#F0D8B8"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#F8E4C4"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#A85C2C"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#FFF0D8" opacity=".55"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgD)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#4A5668"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#DDE2EA"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#E8ECF2"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#565E6E"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4F6FA" opacity=".6"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgE)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#6A3880"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#DCC8EC"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#E8D4F4"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#7A4890"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4E8FF" opacity=".6"/>
+  </svg>
+</div>
+
+<!-- 浅色背景效果 -->
+<p class="label" style="margin-top:20px">— 浅色桌面 Desktop —</p>
+<div class="strip light">
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgA)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#3D5EA0"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#B8C8EC"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#C8D6F0"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#4A6AB0"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#E8EEFF" opacity=".55"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgB)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#2E6A44"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#B0D8BC"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#BEE0C8"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#38784E"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#D8F0DC" opacity=".5"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgC)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#904E24"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#F0D8B8"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#F8E4C4"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#A85C2C"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#FFF0D8" opacity=".55"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgD)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#4A5668"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#DDE2EA"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#E8ECF2"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#565E6E"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4F6FA" opacity=".6"/>
+  </svg>
+  <svg width="56" height="56" viewBox="0 0 160 160" style="border-radius:13px">
+    <rect width="160" height="160" rx="34" fill="url(#bgE)"/>
+    <rect x="13" y="22" width="23" height="116" rx="5" fill="#6A3880"/>
+    <polygon points="36,22 80,78 80,82 36,138" fill="#DCC8EC"/>
+    <polygon points="80,78 124,22 124,138 80,82" fill="#E8D4F4"/>
+    <rect x="124" y="22" width="23" height="116" rx="5" fill="#7A4890"/>
+    <ellipse cx="80" cy="80" rx="4" ry="4" fill="#F4E8FF" opacity=".6"/>
+  </svg>
+</div>
+
+<p style="text-align:center;color:#C8C4BE;font-size:11px;margin-top:36px;letter-spacing:.05em">
+  选好编号 A–E → 精修导出 .ico 集成 macno &nbsp;·&nbsp; 同步修复程序大纲导航 + 打包 Windows 安装包
+</p>
+</body>
+</html>

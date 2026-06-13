@@ -1,0 +1,86 @@
+{
+  "name": "macno",
+  "version": "1.0.0",
+  "description": "A beautiful, Typora-like Markdown editor",
+  "main": "main.js",
+  "author": "macno",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "make-icons": "electron tools/make-icons.js",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder -mwl"
+  },
+  "build": {
+    "appId": "com.macno.editor",
+    "productName": "macno",
+    "copyright": "Copyright © 2026 macno",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/welcome.md",
+      "assets/icon.png",
+      "assets/icon.ico",
+      "assets/icon.icns",
+      "node_modules/vditor/**/*"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "macno"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "${productName} ${version}"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "assets/icon.png",
+      "category": "Office",
+      "maintainer": "macno"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.3.2",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "vditor": "^3.11.2"
+  }
+}
