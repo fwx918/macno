@@ -152,7 +152,7 @@ function rebuildMenu() {
           detail: 'A beautiful Markdown editor for Windows.\nVersion 1.0.0\n\nBuilt with Electron + vditor',
           buttons: ['OK'],
         })},
-        { label: 'Open on GitHub', click: () => shell.openExternal('https://github.com') },
+        { label: 'Open on GitHub', click: () => shell.openExternal('https://github.com/fwx918/macno') },
       ],
     },
   ];
