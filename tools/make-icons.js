@@ -1,6 +1,6 @@
-// Rasterizes assets/icon.svg into icon.ico (Windows), icon.icns (macOS) and
-// icon.png (Linux), using Electron's bundled Chromium for SVG rendering and
-// pure-Node container assembly. Run with:  electron.exe tools/make-icons.js
+// Rasterizes assets/icon.svg into icon.ico (Windows) and icon.png,
+// using Electron's bundled Chromium for SVG rendering and
+// pure-Node ICO assembly. Run with:  electron.exe tools/make-icons.js
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -86,10 +86,6 @@ app.whenReady().then(async () => {
   const ico = buildICO(pngs);
   fs.writeFileSync(path.join(ASSETS, 'icon.ico'), ico);
   log('wrote icon.ico', ico.length, 'bytes');
-
-  const icns = buildICNS(pngs);
-  fs.writeFileSync(path.join(ASSETS, 'icon.icns'), icns);
-  log('wrote icon.icns', icns.length, 'bytes');
 
   const png512 = pngs.find(p => p.size === 512).buf;
   fs.writeFileSync(path.join(ASSETS, 'icon.png'), png512);

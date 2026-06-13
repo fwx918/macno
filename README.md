@@ -63,7 +63,7 @@ npm run build:win  # produce the Windows installer + portable build in release/
 ```
 
 App icons are generated from `assets/icon.svg` with `npm run make-icons`.
-See [BUILD.md](BUILD.md) for full packaging details, including the macOS path.
+See [BUILD.md](BUILD.md) for full packaging details.
 
 ## Tech stack
 

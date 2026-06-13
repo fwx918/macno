@@ -2,7 +2,7 @@ name: Build macno
 
 # Triggered by pushing a version tag (e.g. v1.0.0) or manually from the
 # Actions tab. On a tag push, automatically creates a GitHub Release and
-# attaches the Windows installer + Mac dmg.
+# attaches the Windows installer (.exe) to the release.
 
 on:
   push:
