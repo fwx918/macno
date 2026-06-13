@@ -9,11 +9,8 @@
     "start": "electron .",
     "dev": "electron . --enable-logging",
     "make-icons": "electron tools/make-icons.js",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder -mwl"
+    "build": "electron-builder --win",
+    "build:win": "electron-builder --win"
   },
   "build": {
     "appId": "com.macno.editor",
@@ -34,7 +31,6 @@
       "assets/welcome.md",
       "assets/icon.png",
       "assets/icon.ico",
-      "assets/icon.icns",
       "node_modules/vditor/**/*"
     ],
     "asar": true,
@@ -55,25 +51,6 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"
-    },
-    "mac": {
-      "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
-      ],
-      "icon": "assets/icon.icns",
-      "category": "public.app-category.productivity",
-      "identity": null,
-      "darkModeSupport": true
-    },
-    "dmg": {
-      "title": "${productName} ${version}"
-    },
-    "linux": {
-      "target": ["AppImage", "deb"],
-      "icon": "assets/icon.png",
-      "category": "Office",
-      "maintainer": "macno"
     }
   },
   "devDependencies": {
