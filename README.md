@@ -74,10 +74,9 @@ See [BUILD.md](BUILD.md) for full packaging details, including the macOS path.
 ## Roadmap
 
 - [x] Windows installer + portable build
-- [ ] macOS build (config ready — see [BUILD.md](BUILD.md); needs a Mac or CI)
-- [ ] Linux (AppImage / deb)
 - [ ] Image paste & local image management
 - [ ] Custom theme support
+- [ ] Linux (AppImage / deb)
 
 ## License
 
