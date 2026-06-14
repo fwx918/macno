@@ -456,12 +456,31 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .vditor-ir, .vditor-wysiwyg, .vditor-sv {
   background: var(--editor-bg) !important;
   color: var(--text) !important;
-  padding: 28px max(32px, calc((100% - 1300px) / 2)) 44px !important;
+  /* No horizontal padding here — vditor's own centering padding lives on the
+     inner editable surface. Stacking a second percentage padding on this
+     container created a self-referential width loop that collapsed the text to
+     a 1-char column when the window was maximized. Centering is done below via
+     a deterministic max-width + auto margins (no feedback possible). */
+  padding: 28px 0 44px !important;
   font-family: -apple-system, 'Segoe UI', 'Source Han Sans', system-ui, sans-serif !important;
   font-size: 16px !important;
   line-height: 1.75 !important;
   min-height: 100%;
   caret-color: var(--sidebar-accent);
+}
+
+/* Center the editable column at a fixed max width with stable side gutters.
+   Targets the contenteditable <pre> in IR/WYSIWYG and the <pre> that IS the SV
+   surface, overriding vditor's built-in percentage padding. */
+.vditor-ir > .vditor-reset,
+.vditor-wysiwyg > .vditor-reset,
+.vditor-sv {
+  max-width: 1300px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 32px !important;
+  padding-right: 32px !important;
+  box-sizing: border-box !important;
 }
 
 /* Headings */
