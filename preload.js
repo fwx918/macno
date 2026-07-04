@@ -1,6 +1,6 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // File operations
@@ -26,6 +26,16 @@ contextBridge.exposeInMainWorld('api', {
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+
+  // Dialogs
+  confirmDiscard: (fileName) => ipcRenderer.invoke('confirm-discard', fileName),
+  showError: (title, message) => ipcRenderer.invoke('show-error', { title, message }),
+
+  // Welcome page (first launch)
+  getWelcome: () => ipcRenderer.invoke('get-welcome'),
+
+  // Filesystem path of a dropped File object (File.path was removed in Electron 32+)
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   // Export
   exportPDF: (defaultName) => ipcRenderer.invoke('export-pdf', { defaultName }),

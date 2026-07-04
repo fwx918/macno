@@ -16,10 +16,10 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 // ---------- Settings ----------
 function loadSettings() {
   try { return JSON.parse(fs.readFileSync(settingsPath, 'utf8')); }
-  catch { return { theme: 'light', fontFamily: 'inherit', fontSize: 16, lineHeight: 1.75, focusMode: false, typewrtierMode: false }; }
+  catch { return { theme: 'light' }; }
 }
 function saveSettings(s) {
-  fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2));
+  try { fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2)); } catch {}
 }
 
 // ---------- Recent files ----------
@@ -28,7 +28,7 @@ function loadRecent() {
   catch { return []; }
 }
 function saveRecent(list) {
-  fs.writeFileSync(recentFilesPath, JSON.stringify(list));
+  try { fs.writeFileSync(recentFilesPath, JSON.stringify(list)); } catch {}
 }
 function addRecent(filePath) {
   let list = loadRecent().filter(p => p !== filePath);
@@ -112,14 +112,13 @@ function rebuildMenu() {
       submenu: [
         { label: 'Bold', accelerator: 'CmdOrCtrl+B', click: () => mainWindow.webContents.send('menu-action', 'bold') },
         { label: 'Italic', accelerator: 'CmdOrCtrl+I', click: () => mainWindow.webContents.send('menu-action', 'italic') },
-        { label: 'Strikethrough', accelerator: 'CmdOrCtrl+Shift+S', click: () => mainWindow.webContents.send('menu-action', 'strikethrough') },
+        { label: 'Strikethrough', accelerator: 'Alt+Shift+5', click: () => mainWindow.webContents.send('menu-action', 'strikethrough') },
         { label: 'Inline Code', accelerator: 'CmdOrCtrl+Shift+`', click: () => mainWindow.webContents.send('menu-action', 'inline-code') },
         { type: 'separator' },
         { label: 'Heading 1', accelerator: 'CmdOrCtrl+1', click: () => mainWindow.webContents.send('menu-action', 'h1') },
         { label: 'Heading 2', accelerator: 'CmdOrCtrl+2', click: () => mainWindow.webContents.send('menu-action', 'h2') },
         { label: 'Heading 3', accelerator: 'CmdOrCtrl+3', click: () => mainWindow.webContents.send('menu-action', 'h3') },
         { label: 'Heading 4', accelerator: 'CmdOrCtrl+4', click: () => mainWindow.webContents.send('menu-action', 'h4') },
-        { label: 'Paragraph', accelerator: 'CmdOrCtrl+0', click: () => mainWindow.webContents.send('menu-action', 'paragraph') },
         { type: 'separator' },
         { label: 'Ordered List', accelerator: 'CmdOrCtrl+Shift+[', click: () => mainWindow.webContents.send('menu-action', 'ordered-list') },
         { label: 'Unordered List', accelerator: 'CmdOrCtrl+Shift+]', click: () => mainWindow.webContents.send('menu-action', 'unordered-list') },
@@ -149,7 +148,7 @@ function rebuildMenu() {
         { label: 'About macno', click: () => dialog.showMessageBox(mainWindow, {
           title: 'About macno',
           message: 'macno',
-          detail: 'A beautiful Markdown editor for Windows.\nVersion 1.0.0\n\nBuilt with Electron + vditor',
+          detail: `A beautiful Markdown editor for Windows.\nVersion ${app.getVersion()}\n\nBuilt with Electron + vditor`,
           buttons: ['OK'],
         })},
         { label: 'Open on GitHub', click: () => shell.openExternal('https://github.com/fwx918/macno') },
@@ -178,11 +177,14 @@ async function menuOpenFolder() {
   }
 }
 
+// Reads the file and hands it to the renderer, which confirms unsaved changes
+// before applying it (and re-asserts its state via set-current-path/set-modified
+// if the user cancels). Recent-list bookkeeping happens in the renderer too, so
+// only files that actually got opened are recorded.
 function openFileByPath(filePath) {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     currentFile = { path: filePath, modified: false };
-    addRecent(filePath);
     setTitle(filePath, false);
     mainWindow.webContents.send('open-file', { path: filePath, content });
   } catch (err) {
@@ -219,7 +221,6 @@ ipcMain.handle('open-file-dialog', async () => {
   if (result.canceled || !result.filePaths[0]) return null;
   const filePath = result.filePaths[0];
   const content = fs.readFileSync(filePath, 'utf8');
-  addRecent(filePath);
   return { path: filePath, content };
 });
 
@@ -243,6 +244,7 @@ ipcMain.handle('set-modified', (_, modified) => {
 
 ipcMain.handle('set-current-path', (_, filePath) => {
   currentFile.path = filePath;
+  setTitle(filePath, currentFile.modified);
 });
 
 ipcMain.handle('get-settings', () => loadSettings());
@@ -258,7 +260,8 @@ ipcMain.handle('export-pdf', async (_, { defaultName }) => {
   const data = await mainWindow.webContents.printToPDF({
     printBackground: true,
     pageSize: 'A4',
-    margins: { top: 40, bottom: 40, left: 40, right: 40 },
+    // printToPDF margins are in inches
+    margins: { top: 0.6, bottom: 0.6, left: 0.6, right: 0.6 },
   });
   fs.writeFileSync(result.filePath, data);
   shell.showItemInFolder(result.filePath);
@@ -281,6 +284,32 @@ ipcMain.handle('show-item-in-folder', (_, filePath) => shell.showItemInFolder(fi
 ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
 
 ipcMain.handle('get-current-file', () => currentFile);
+
+// Ask the user what to do with unsaved changes: 0 = Save, 1 = Don't Save, 2 = Cancel
+ipcMain.handle('confirm-discard', async (_, fileName) => {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Save', "Don't Save", 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    title: 'Save changes?',
+    message: `"${fileName || 'Untitled'}" has unsaved changes.`,
+  });
+  return response;
+});
+
+ipcMain.handle('show-error', (_, { title, message }) => {
+  dialog.showErrorBox(title || 'Error', message || 'Unknown error');
+});
+
+// Welcome content for first launch. Served as raw text so the renderer can show
+// it as an untitled document — the packaged welcome.md lives inside the asar and
+// must never become an editable "file" (writes to it would fail).
+ipcMain.handle('get-welcome', () => {
+  if (loadRecent().length) return null;
+  try { return fs.readFileSync(path.join(__dirname, 'assets', 'welcome.md'), 'utf8'); }
+  catch { return null; }
+});
 
 ipcMain.handle('read-dir', async (_, dirPath) => {
   try {
@@ -368,32 +397,16 @@ app.whenReady().then(() => {
     }
   });
 
-  // Open file passed as command-line argument, otherwise open welcome
+  // Open file passed as command-line argument. First-launch welcome content is
+  // pulled by the renderer via 'get-welcome' and shown as an untitled document.
   const argFile = process.argv.find(a => /\.(md|markdown|txt)$/i.test(a) && !a.includes('node_modules'));
   if (argFile && fs.existsSync(argFile)) {
     openFileByPath(argFile);
-  } else {
-    // Open welcome file on first launch (no recent files)
-    const recent = loadRecent();
-    if (!recent.length) {
-      const welcome = path.join(__dirname, 'assets', 'welcome.md');
-      if (fs.existsSync(welcome)) openFileByPath(welcome);
-    }
   }
 
   rebuildMenu();
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) app.whenReady().then(() => {});
-});
-
-// Handle file open from OS (double-click .md)
-app.on('open-file', (e, filePath) => {
-  e.preventDefault();
-  if (mainWindow) openFileByPath(filePath);
+  app.quit();
 });

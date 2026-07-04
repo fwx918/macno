@@ -65,12 +65,20 @@ async function init() {
   setupKeyboardShortcuts();
   setupMenuActions();
 
-  // Check if a file was opened from main
+  // Check if a file was opened from main (command-line argument)
   const current = await window.api.getCurrentFile();
+  let opened = false;
   if (current && current.path) {
-    await openFile(current.path, await window.api.readFile(current.path));
-  } else {
-    setNewFile();
+    try {
+      await openFile(current.path, await window.api.readFile(current.path));
+      opened = true;
+    } catch { /* file vanished — fall through */ }
+  }
+  if (!opened) {
+    // First launch: show the welcome page as an untitled document
+    const welcome = await window.api.getWelcome();
+    if (welcome) loadUntitled(welcome);
+    else setNewFile();
   }
 }
 
@@ -128,14 +136,18 @@ function onEditorInput() {
     state.modified = true;
     window.api.setModified(true);
   }
-  scheduleOutlineUpdate();
-  updateWordCount();
+  scheduleDocUpdate();
 }
 
-let outlineTimer = null;
-function scheduleOutlineUpdate() {
-  clearTimeout(outlineTimer);
-  outlineTimer = setTimeout(updateOutline, 400);
+// Outline + word count both call vditor.getValue() (a full serialize), so they
+// share one debounce instead of running on every keystroke.
+let docUpdateTimer = null;
+function scheduleDocUpdate() {
+  clearTimeout(docUpdateTimer);
+  docUpdateTimer = setTimeout(() => {
+    updateOutline();
+    updateWordCount();
+  }, 400);
 }
 
 function handleEditorKeydown(e) {
@@ -145,17 +157,40 @@ function handleEditorKeydown(e) {
 }
 
 // ===== File operations =====
-function setNewFile() {
+
+// Returns true when it's safe to replace the current document
+// (nothing modified, user saved, or user chose to discard).
+async function ensureSaved() {
+  if (!state.modified) return true;
+  const name = state.currentFile && state.currentFile.path
+    ? state.currentFile.path.split(/[/\\]/).pop()
+    : 'Untitled';
+  const choice = await window.api.confirmDiscard(name);
+  if (choice === 0) return saveFile();
+  return choice === 1;
+}
+
+// Show content as an in-memory untitled document (new file, welcome page,
+// dropped content without a filesystem path).
+function loadUntitled(content) {
   state.currentFile = null;
   state.modified = false;
   state.suppressInput = true;
-  state.vditor.setValue('');
+  state.vditor.setValue(content || '');
   state.suppressInput = false;
   window.api.setModified(false);
   window.api.setCurrentPath(null);
   updateStatusFile(null);
   updateOutline();
   updateWordCount();
+}
+
+function setNewFile() {
+  loadUntitled('');
+}
+
+async function newFile() {
+  if (await ensureSaved()) setNewFile();
 }
 
 async function openFile(filePath, content) {
@@ -165,8 +200,10 @@ async function openFile(filePath, content) {
   state.vditor.setValue(content || '');
   state.suppressInput = false;
   window.api.setModified(false);
+  window.api.setCurrentPath(filePath);
+  window.api.addRecent(filePath);
   updateStatusFile(filePath);
-  scheduleOutlineUpdate();
+  updateOutline();
   updateWordCount();
   // Highlight active item in file tree
   $$('.tree-item.active').forEach(el => el.classList.remove('active'));
@@ -174,29 +211,39 @@ async function openFile(filePath, content) {
   if (treeItem) treeItem.classList.add('active');
 }
 
+// Both save functions return true only if the content actually hit disk.
 async function saveFile() {
   const content = state.vditor.getValue();
-  if (state.currentFile && state.currentFile.path) {
+  if (!state.currentFile || !state.currentFile.path) return saveFileAs();
+  try {
     await window.api.writeFile(state.currentFile.path, content);
-    state.modified = false;
-    window.api.setModified(false);
-    state.currentFile.content = content;
-  } else {
-    await saveFileAs();
+  } catch (err) {
+    await window.api.showError('Cannot save file', `${state.currentFile.path}\n\n${err.message}`);
+    return false;
   }
+  state.modified = false;
+  window.api.setModified(false);
+  state.currentFile.content = content;
+  return true;
 }
 
 async function saveFileAs() {
   const content = state.vditor.getValue();
   const defaultPath = state.currentFile ? state.currentFile.path : null;
   const filePath = await window.api.saveDialog(defaultPath);
-  if (!filePath) return;
-  await window.api.writeFile(filePath, content);
+  if (!filePath) return false;
+  try {
+    await window.api.writeFile(filePath, content);
+  } catch (err) {
+    await window.api.showError('Cannot save file', `${filePath}\n\n${err.message}`);
+    return false;
+  }
   state.currentFile = { path: filePath, content };
   state.modified = false;
   window.api.setModified(false);
   window.api.setCurrentPath(filePath);
   updateStatusFile(filePath);
+  return true;
 }
 
 // ===== Outline =====
@@ -352,11 +399,12 @@ async function loadRecent() {
     el.className = 'recent-item';
     el.innerHTML = `<div class="recent-name">${escHtml(name)}</div><div class="recent-path">${escHtml(dir)}</div>`;
     el.addEventListener('click', async () => {
+      if (!(await ensureSaved())) return;
       try {
         const content = await window.api.readFile(filePath);
         await openFile(filePath, content);
       } catch (e) {
-        alert(`Cannot open: ${filePath}`);
+        window.api.showError('Cannot open file', filePath);
       }
     });
     dom.recentList.appendChild(el);
@@ -408,10 +456,13 @@ function renderTree(container, nodes, depth) {
     } else {
       item.addEventListener('click', async () => {
         if (!isMarkdown(node.name)) return;
-        $$('.tree-item.active').forEach(el => el.classList.remove('active'));
-        item.classList.add('active');
-        const content = await window.api.readFile(node.path);
-        await openFile(node.path, content);
+        if (!(await ensureSaved())) return;
+        try {
+          const content = await window.api.readFile(node.path);
+          await openFile(node.path, content);
+        } catch (e) {
+          window.api.showError('Cannot open file', node.path);
+        }
       });
     }
   });
@@ -444,7 +495,7 @@ function setupSidebar() {
   });
 
   dom.btnNewFile.addEventListener('click', () => {
-    setNewFile();
+    newFile();
   });
 }
 
@@ -502,9 +553,19 @@ function setupDragDrop() {
     document.body.classList.remove('drag-over');
     const files = [...e.dataTransfer.files];
     const mdFile = files.find(f => /\.(md|markdown|txt)$/i.test(f.name));
-    if (mdFile) {
-      const content = await mdFile.text();
-      await openFile(mdFile.path || mdFile.name, content);
+    if (!mdFile) return;
+    if (!(await ensureSaved())) return;
+    const filePath = window.api.getPathForFile(mdFile);
+    if (filePath) {
+      try {
+        const content = await window.api.readFile(filePath);
+        await openFile(filePath, content);
+      } catch (err) {
+        window.api.showError('Cannot open file', filePath);
+      }
+    } else {
+      // No filesystem path available — load the content as an untitled doc
+      loadUntitled(await mdFile.text());
     }
   });
 }
@@ -542,39 +603,58 @@ function hideFindBar() {
   dom.findCount.textContent = '';
 }
 
+// Case-insensitive source-text search. Matching, navigation and replacement all
+// share the same rules so the counter never disagrees with what replace does.
 function doFind() {
-  // Simple in-content search — vditor doesn't expose a native search API
   const q = dom.findInput.value;
+  state.findMatches = [];
+  state.findIndex = -1; // nothing visited yet
   if (!q) { dom.findCount.textContent = ''; return; }
   const content = state.vditor.getValue();
-  const matches = [];
-  let idx = 0;
   const lower = content.toLowerCase();
   const qLower = q.toLowerCase();
+  let idx = 0;
   while ((idx = lower.indexOf(qLower, idx)) !== -1) {
-    matches.push(idx);
+    state.findMatches.push(idx);
     idx += q.length;
   }
-  state.findMatches = matches;
-  state.findIndex = 0;
-  dom.findCount.textContent = matches.length ? `1 / ${matches.length}` : 'Not found';
+  dom.findCount.textContent = state.findMatches.length
+    ? `${state.findMatches.length} matches`
+    : 'Not found';
 }
 
 function findNavigate(dir) {
-  if (!state.findMatches.length) return;
-  state.findIndex = (state.findIndex + dir + state.findMatches.length) % state.findMatches.length;
-  dom.findCount.textContent = `${state.findIndex + 1} / ${state.findMatches.length}`;
+  const q = dom.findInput.value;
+  if (!q || !state.findMatches.length) return;
+  const n = state.findMatches.length;
+  if (state.findIndex === -1) state.findIndex = dir > 0 ? 0 : n - 1;
+  else state.findIndex = (state.findIndex + dir + n) % n;
+  dom.findCount.textContent = `${state.findIndex + 1} / ${n}`;
+  // Highlight & scroll the rendered document to the next occurrence
+  window.find(q, false, dir < 0, true, false, false, false);
 }
 
 function doReplaceOne() {
   const q = dom.findInput.value;
   const r = dom.replaceInput.value;
   if (!q) return;
+  // Re-scan first: the editor content may have changed since the last doFind
+  const keep = state.findIndex;
+  doFind();
+  if (!state.findMatches.length) return;
+  const at = keep >= 0 && keep < state.findMatches.length ? keep : 0;
+  const pos = state.findMatches[at];
   const content = state.vditor.getValue();
-  const newContent = content.replace(q, r);
+  // Positional splice: replaces exactly the current occurrence and keeps
+  // `$`-patterns in the replacement string literal.
+  const newContent = content.slice(0, pos) + r + content.slice(pos + q.length);
   state.vditor.setValue(newContent);
   onEditorInput();
   doFind();
+  if (state.findMatches.length) {
+    state.findIndex = Math.min(at, state.findMatches.length - 1);
+    dom.findCount.textContent = `${state.findIndex + 1} / ${state.findMatches.length}`;
+  }
 }
 
 function doReplaceAll() {
@@ -582,9 +662,18 @@ function doReplaceAll() {
   const r = dom.replaceInput.value;
   if (!q) return;
   const content = state.vditor.getValue();
-  const re = new RegExp(escRegex(q), 'g');
-  const newContent = content.replace(re, r);
-  state.vditor.setValue(newContent);
+  const lower = content.toLowerCase();
+  const qLower = q.toLowerCase();
+  let out = '';
+  let i = 0;
+  let idx;
+  while ((idx = lower.indexOf(qLower, i)) !== -1) {
+    out += content.slice(i, idx) + r;
+    i = idx + q.length;
+  }
+  out += content.slice(i);
+  if (out === content) return;
+  state.vditor.setValue(out);
   onEditorInput();
   doFind();
 }
@@ -611,8 +700,8 @@ function applyTheme(theme) {
 // ===== Focus / Typewriter mode =====
 function toggleFocusMode() {
   state.focusMode = !state.focusMode;
-  const irEl = document.querySelector('.vditor-ir');
-  if (irEl) irEl.classList.toggle('focus-mode', state.focusMode);
+  const el = getEditorEl();
+  if (el) el.classList.toggle('focus-mode', state.focusMode);
 }
 
 function toggleTypewriterMode() {
@@ -638,39 +727,19 @@ async function toggleSourceMode() {
   const content = state.vditor.getValue();
   state.editorMode = newMode;
 
-  // Destroy and reinit vditor with new mode
+  // Destroy and reinit vditor with the new mode, using the same option set as
+  // the initial editor so behavior doesn't drift between modes.
   state.vditor.destroy();
   document.getElementById('editor').innerHTML = '';
-  await reinitVditor(newMode, content);
-  dom.statusMode.textContent = newMode === 'sv' ? 'SOURCE' : 'WYSIWYG';
-}
-
-function reinitVditor(mode, content) {
-  return new Promise((resolve) => {
-    state.vditor = new Vditor('editor', {
-      mode,
-      height: '100%',
-      cdn: '../node_modules/vditor',
-      toolbar: [],
-      toolbarConfig: { hide: true },
-      outline: { enable: false },
-      counter: { enable: false },
-      resize: { enable: false },
-      tab: '\t',
-      theme: state.theme === 'dark' ? 'dark' : 'classic',
-      preview: {
-        theme: { current: state.theme === 'dark' ? 'dark' : 'light' },
-        math: { engine: 'KaTeX', inlineDigit: true },
-        mermaid: { zoom: 1 },
-        hljs: { style: state.theme === 'dark' ? 'github-dark' : 'github', lineNumber: false },
-      },
-      cache: { enable: false },
-      value: content,
-      after: () => resolve(),
-      input: () => onEditorInput(),
-      keydown: (e) => handleEditorKeydown(e),
-    });
+  await new Promise((resolve) => {
+    state.vditor = new Vditor('editor', makeVditorOptions(newMode, content, resolve));
   });
+  // Re-apply per-editor state lost when the DOM was rebuilt
+  if (state.focusMode) {
+    const el = getEditorEl();
+    if (el) el.classList.add('focus-mode');
+  }
+  dom.statusMode.textContent = newMode === 'sv' ? 'SOURCE' : 'WYSIWYG';
 }
 
 // ===== Keyboard shortcuts =====
@@ -680,14 +749,13 @@ function setupKeyboardShortcuts() {
     if (ctrl && e.key === 's' && !e.shiftKey) { e.preventDefault(); saveFile(); return; }
     if (ctrl && e.key === 'S') { e.preventDefault(); saveFileAs(); return; }
     if (ctrl && e.key === 'o' && !e.shiftKey) { e.preventDefault(); doMenuOpen(); return; }
-    if (ctrl && e.key === 'n' && !e.shiftKey) { e.preventDefault(); setNewFile(); return; }
+    if (ctrl && e.key === 'n' && !e.shiftKey) { e.preventDefault(); newFile(); return; }
     if (ctrl && e.key === '/') { e.preventDefault(); toggleSourceMode(); return; }
     if (ctrl && e.key === 'f' && !e.shiftKey) { e.preventDefault(); showFindBar(false); return; }
     if (ctrl && e.key === 'h') { e.preventDefault(); showFindBar(true); return; }
     if (ctrl && e.shiftKey && e.key === 'L') { e.preventDefault(); toggleSidebar(); return; }
-    if (ctrl && e.shiftKey && e.key === '1') { e.preventDefault(); switchPanel('outline'); return; }
-    if (ctrl && e.shiftKey && e.key === '2') { e.preventDefault(); switchPanel('recent'); return; }
-    if (ctrl && e.shiftKey && e.key === '3') { e.preventDefault(); switchPanel('files'); return; }
+    // Ctrl+Shift+1/2/3 are handled by the menu accelerators (with Shift held,
+    // e.key reports '!'/'@'/'#' here, so they can't be matched reliably).
     if (e.key === 'F8') { e.preventDefault(); toggleFocusMode(); return; }
     if (e.key === 'F9') { e.preventDefault(); toggleTypewriterMode(); return; }
     if (e.key === 'Escape') {
@@ -699,11 +767,20 @@ function setupKeyboardShortcuts() {
 // ===== Menu actions from main =====
 function setupMenuActions() {
   window.api.on('menu-action', handleMenuAction);
-  window.api.on('open-file', ({ path, content }) => openFile(path, content));
+  window.api.on('open-file', async ({ path, content }) => {
+    if (await ensureSaved()) {
+      await openFile(path, content);
+    } else {
+      // Main already switched its current-file state before sending; restore ours
+      window.api.setCurrentPath(state.currentFile ? state.currentFile.path : null);
+      window.api.setModified(state.modified);
+    }
+  });
   window.api.on('open-folder', (folder) => openFolder(folder));
 }
 
 async function doMenuOpen() {
+  if (!(await ensureSaved())) return;
   const result = await window.api.openFileDialog();
   if (result) {
     await openFile(result.path, result.content);
@@ -713,12 +790,12 @@ async function doMenuOpen() {
 
 async function handleMenuAction(action) {
   switch (action) {
-    case 'new': setNewFile(); break;
+    case 'new': await newFile(); break;
     case 'save': await saveFile(); break;
     case 'save-as': await saveFileAs(); break;
     case 'save-then-close':
-      await saveFile();
-      window.close();
+      // Only close if the save actually happened (not cancelled / failed)
+      if (await saveFile()) window.close();
       break;
     case 'export-pdf': await exportPDF(); break;
     case 'export-html': await exportHTML(); break;
@@ -767,7 +844,11 @@ async function exportPDF() {
   const name = state.currentFile
     ? state.currentFile.path.split(/[/\\]/).pop().replace(/\.\w+$/, '.pdf')
     : 'document.pdf';
-  await window.api.exportPDF(name);
+  try {
+    await window.api.exportPDF(name);
+  } catch (err) {
+    window.api.showError('PDF export failed', err.message);
+  }
 }
 
 async function exportHTML() {
@@ -776,7 +857,11 @@ async function exportHTML() {
     ? state.currentFile.path.split(/[/\\]/).pop().replace(/\.\w+$/, '.html')
     : 'document.html';
   const fullHtml = buildExportHTML(html, name.replace('.html', ''));
-  await window.api.exportHTML(fullHtml, name);
+  try {
+    await window.api.exportHTML(fullHtml, name);
+  } catch (err) {
+    window.api.showError('HTML export failed', err.message);
+  }
 }
 
 function buildExportHTML(body, title) {
@@ -806,10 +891,7 @@ function buildExportHTML(body, title) {
 
 // ===== Utils =====
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function escRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ===== Bootstrap =====

@@ -13,11 +13,13 @@ const handlers = {
   'get-settings': {}, 'get-recent': [], 'get-current-file': null,
   'set-modified': true, 'set-current-path': true, 'add-recent': true,
   'read-file': '', 'read-dir': [], 'get-dir-tree': null,
+  'get-welcome': null, 'confirm-discard': 1,
 };
 for (const ch of Object.keys(handlers)) ipcMain.handle(ch, () => handlers[ch]);
 // catch-all for anything else
 for (const ch of ['write-file','save-dialog','open-file-dialog','open-folder-dialog',
-  'save-settings','export-pdf','export-html','show-item-in-folder','open-external']) {
+  'save-settings','export-pdf','export-html','show-item-in-folder','open-external',
+  'show-error']) {
   ipcMain.handle(ch, () => null);
 }
 
