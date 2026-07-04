@@ -1,6 +1,6 @@
 {
   "name": "macno",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A beautiful, Typora-like Markdown editor",
   "main": "main.js",
   "author": "macno",
