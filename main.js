@@ -321,9 +321,16 @@ ipcMain.handle('read-dir', async (_, dirPath) => {
   } catch { return []; }
 });
 
-// Recursive directory tree (max depth 5)
+// Recursive directory tree (max depth 5). Beyond the limit, non-empty
+// directories get a stub entry so deep folders don't silently look empty.
 function getDirTree(dirPath, depth) {
-  if (depth > 5) return [];
+  if (depth > 5) {
+    try {
+      return fs.readdirSync(dirPath).length
+        ? [{ name: '… (too deep to display)', path: dirPath, isDir: false, stub: true }]
+        : [];
+    } catch { return []; }
+  }
   try {
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
     return entries
@@ -344,7 +351,24 @@ function getDirTree(dirPath, depth) {
 }
 
 // ---------- App lifecycle ----------
+// Single instance: opening a .md from Explorer while the app runs hands the
+// file to the existing window instead of spawning a second instance (which
+// would also fight over recent.json/settings.json).
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
+app.on('second-instance', (_, argv) => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+  const argFile = argv.find(a => /\.(md|markdown|txt)$/i.test(a) && !a.includes('node_modules') && fs.existsSync(a));
+  if (argFile) openFileByPath(argFile);
+});
+
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return;
   const iconPath = path.join(__dirname, 'assets', 'icon.ico');
   const winOpts = {
     width: 1200,
@@ -389,12 +413,15 @@ app.whenReady().then(() => {
     }
   });
 
-  // Handle file drop onto the window
+  // The app never navigates away from index.html. If the attempted navigation
+  // is a local Markdown file (e.g. a drop the renderer didn't catch), open it.
   mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (url.startsWith('file://') && (url.endsWith('.md') || url.endsWith('.txt'))) {
-      e.preventDefault();
-      openFileByPath(decodeURIComponent(url.replace('file:///', '')));
-    }
+    e.preventDefault();
+    try {
+      if (url.startsWith('file://') && /\.(md|markdown|txt)$/i.test(url)) {
+        openFileByPath(decodeURIComponent(url.replace('file:///', '')));
+      }
+    } catch { /* malformed URL — ignore */ }
   });
 
   // Open file passed as command-line argument. First-launch welcome content is

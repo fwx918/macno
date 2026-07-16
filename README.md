@@ -46,7 +46,7 @@ Grab the latest build from the [**Releases**](../../releases) page:
 
 | File | Description |
 |------|-------------|
-| `macno-Setup-x.y.z.exe` | Installer. Defaults to `C:\Program Files\macno` (you can choose another folder), creates Start‑menu + desktop shortcuts. |
+| `macno-x.y.z-win-x64.exe` | Installer. Defaults to `C:\Program Files\macno` (you can choose another folder), creates Start‑menu + desktop shortcuts. |
 | `macno-x.y.z-portable.exe` | Portable build — no installation, just run it. |
 
 > The installer is **unsigned**, so Windows SmartScreen or Chinese security suites

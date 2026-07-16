@@ -53,25 +53,6 @@ function buildICO(pngs) {
   return Buffer.concat([header, dir, ...entries.map(p => p.buf)]);
 }
 
-function buildICNS(pngs) {
-  // OSType per size for PNG-encoded entries (modern macOS reads PNG fine).
-  const TYPES = { 16: 'icp4', 32: 'icp5', 64: 'icp6', 128: 'ic07', 256: 'ic08', 512: 'ic09', 1024: 'ic10' };
-  const chunks = [];
-  pngs.forEach(p => {
-    const type = TYPES[p.size];
-    if (!type) return;
-    const head = Buffer.alloc(8);
-    head.write(type, 0, 'ascii');
-    head.writeUInt32BE(8 + p.buf.length, 4);
-    chunks.push(head, p.buf);
-  });
-  const body = Buffer.concat(chunks);
-  const file = Buffer.alloc(8);
-  file.write('icns', 0, 'ascii');
-  file.writeUInt32BE(8 + body.length, 4);
-  return Buffer.concat([file, body]);
-}
-
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 100, height: 100, webPreferences: { offscreen: true } });
   await win.loadURL('data:text/html,<!doctype html><html><body></body></html>');

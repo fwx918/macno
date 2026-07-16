@@ -9,10 +9,12 @@ const welcome = fs.readFileSync(path.join(ROOT, 'assets', 'welcome.md'), 'utf8')
 
 for (const ch of ['get-settings']) ipcMain.handle(ch, () => ({ theme: 'light' }));
 for (const ch of ['get-recent', 'read-dir']) ipcMain.handle(ch, () => []);
-for (const ch of ['get-current-file', 'get-dir-tree']) ipcMain.handle(ch, () => null);
+for (const ch of ['get-current-file', 'get-dir-tree', 'get-welcome']) ipcMain.handle(ch, () => null);
+ipcMain.handle('confirm-discard', () => 1);
 for (const ch of ['set-modified', 'set-current-path', 'add-recent', 'write-file',
   'save-dialog', 'open-file-dialog', 'open-folder-dialog', 'save-settings',
-  'export-pdf', 'export-html', 'show-item-in-folder', 'open-external', 'read-file']) {
+  'export-pdf', 'export-html', 'show-item-in-folder', 'open-external', 'read-file',
+  'show-error']) {
   ipcMain.handle(ch, () => null);
 }
 
@@ -44,9 +46,10 @@ app.whenReady().then(async () => {
     ).catch(() => 0);
     if (loaded > 300) break;
   }
-  // Cancel the pending outline refresh setValue scheduled, so our DOM-based
-  // injection below isn't clobbered (vditor.getValue() lags after headless setValue).
-  await win.webContents.executeJavaScript(`(()=>{ try { if (typeof outlineTimer !== 'undefined') clearTimeout(outlineTimer); } catch(e){} })()`).catch(() => {});
+  // Cancel the pending outline/word-count refresh setValue scheduled, so our
+  // DOM-based injection below isn't clobbered (vditor.getValue() lags after
+  // headless setValue).
+  await win.webContents.executeJavaScript(`(()=>{ try { if (typeof docUpdateTimer !== 'undefined') clearTimeout(docUpdateTimer); } catch(e){} })()`).catch(() => {});
   await win.webContents.executeJavaScript(`(()=>{ try {
     const ed = document.querySelector('.vditor-ir');
     const hs = [...ed.querySelectorAll('h1,h2,h3,h4,h5,h6')];

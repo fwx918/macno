@@ -331,6 +331,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 .tree-item:hover { background: var(--sidebar-hover); }
 .tree-item.active { background: var(--sidebar-active); }
+.tree-item.stub { color: var(--panel-header-text); font-style: italic; cursor: default; }
+.tree-item.stub:hover { background: transparent; }
 .tree-item .tree-icon { flex-shrink: 0; font-size: 12px; }
 .tree-item .tree-name { overflow: hidden; text-overflow: ellipsis; }
 
@@ -544,24 +546,17 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* Task list */
 .vditor-task { cursor: pointer; }
 
-/* Focus mode */
-.vditor-ir.focus-mode p:not(:focus-within),
-.vditor-ir.focus-mode li:not(:focus-within),
-.vditor-ir.focus-mode h1:not(:focus-within),
-.vditor-ir.focus-mode h2:not(:focus-within),
-.vditor-ir.focus-mode h3:not(:focus-within),
-.vditor-ir.focus-mode h4:not(:focus-within),
-.vditor-ir.focus-mode blockquote:not(:focus-within) {
+/* Focus mode — dim every top-level block except the one holding the caret.
+   The caret block gets .current-block from JS (updateCurrentBlock): the editor
+   is a single contenteditable, so :focus-within can never distinguish blocks
+   (focus always sits on the root <pre>, an ancestor of every block). */
+.vditor-ir.focus-mode > .vditor-reset > *:not(.current-block) {
   opacity: 0.35;
   transition: opacity 0.3s;
 }
-.vditor-ir.focus-mode p:focus-within,
-.vditor-ir.focus-mode li:focus-within,
-.vditor-ir.focus-mode h1:focus-within,
-.vditor-ir.focus-mode h2:focus-within,
-.vditor-ir.focus-mode h3:focus-within,
-.vditor-ir.focus-mode blockquote:focus-within {
+.vditor-ir.focus-mode > .vditor-reset > .current-block {
   opacity: 1;
+  transition: opacity 0.3s;
 }
 
 /* Source mode */

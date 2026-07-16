@@ -424,6 +424,15 @@ async function openFolder(folderPath) {
 
 function renderTree(container, nodes, depth) {
   nodes.forEach(node => {
+    if (node.stub) {
+      // Depth-limit marker from getDirTree — informational, not clickable
+      const stub = document.createElement('div');
+      stub.className = 'tree-item stub';
+      stub.style.paddingLeft = `${8 + depth * 14}px`;
+      stub.textContent = node.name;
+      container.appendChild(stub);
+      return;
+    }
     const item = document.createElement('div');
     item.className = `tree-item${node.isDir ? ' is-dir' : ''}`;
     item.dataset.path = node.path;
@@ -702,7 +711,45 @@ function toggleFocusMode() {
   state.focusMode = !state.focusMode;
   const el = getEditorEl();
   if (el) el.classList.toggle('focus-mode', state.focusMode);
+  if (state.focusMode) {
+    updateCurrentBlock();
+  } else {
+    $$('.current-block').forEach(b => b.classList.remove('current-block'));
+  }
 }
+
+// Tag the top-level block that holds the caret with .current-block so the
+// focus-mode CSS can highlight it. The editor is one contenteditable, so this
+// has to be tracked from the selection — CSS alone can't tell blocks apart.
+function updateCurrentBlock() {
+  const editable = document.querySelector('.vditor-ir > .vditor-reset');
+  if (!editable) return;
+  let block = null;
+  const sel = window.getSelection();
+  if (sel && sel.anchorNode && editable.contains(sel.anchorNode)) {
+    let node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    while (node && node.parentElement !== editable) node = node.parentElement;
+    if (node && node !== editable) block = node;
+  }
+  editable.querySelectorAll(':scope > .current-block').forEach(el => {
+    if (el !== block) el.classList.remove('current-block');
+  });
+  if (block) block.classList.add('current-block');
+}
+
+// Coalesce the bursts of selectionchange events per edit into one update.
+// setTimeout (not rAF): rAF never fires while the window is hidden/minimized,
+// which would leave the scheduled flag stuck and the highlight frozen.
+let currentBlockScheduled = false;
+document.addEventListener('selectionchange', () => {
+  if (!state.focusMode || currentBlockScheduled) return;
+  currentBlockScheduled = true;
+  setTimeout(() => {
+    currentBlockScheduled = false;
+    // Re-check at run time: focus mode may have been toggled off since scheduling
+    if (state.focusMode) updateCurrentBlock();
+  }, 0);
+});
 
 function toggleTypewriterMode() {
   state.typewriterMode = !state.typewriterMode;
@@ -738,6 +785,7 @@ async function toggleSourceMode() {
   if (state.focusMode) {
     const el = getEditorEl();
     if (el) el.classList.add('focus-mode');
+    updateCurrentBlock();
   }
   dom.statusMode.textContent = newMode === 'sv' ? 'SOURCE' : 'WYSIWYG';
 }
