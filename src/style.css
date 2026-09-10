@@ -336,6 +336,20 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .tree-item .tree-icon { flex-shrink: 0; font-size: 12px; }
 .tree-item .tree-name { overflow: hidden; text-overflow: ellipsis; }
 
+.tree-item.editing { background: var(--sidebar-active); overflow: visible; }
+.tree-inline-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 1px 5px;
+  border: 1px solid var(--sidebar-accent);
+  border-radius: 3px;
+  outline: none;
+  background: var(--editor-bg);
+  color: var(--text);
+  font: inherit;
+}
+
 .tree-children { display: none; }
 .tree-children.open { display: block; }
 
@@ -382,6 +396,35 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   position: relative;
 }
 
+#document-title-wrap {
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 30px 32px 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+#document-title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: -apple-system, 'Segoe UI', 'Source Han Sans', system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+#document-title:not([readonly]):hover { border-bottom-color: var(--border); }
+#document-title:not([readonly]):focus { border-bottom-color: var(--sidebar-accent); }
+#document-title[readonly] { cursor: default; color: var(--panel-header-text); }
+
 #editor {
   flex: 1;
 }
@@ -389,7 +432,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* vditor fills its container and grows with content; #editor-wrapper is the
    ONE scroll container (see overflow rules below) so there is a single scrollbar. */
 #editor .vditor {
-  min-height: 100% !important;
+  min-height: calc(100vh - var(--statusbar-height) - 71px) !important;
 }
 
 /* ===== Status bar ===== */
@@ -463,7 +506,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
      container created a self-referential width loop that collapsed the text to
      a 1-char column when the window was maximized. Centering is done below via
      a deterministic max-width + auto margins (no feedback possible). */
-  padding: 28px 0 44px !important;
+  padding: 10px 0 44px !important;
   font-family: -apple-system, 'Segoe UI', 'Source Han Sans', system-ui, sans-serif !important;
   font-size: 16px !important;
   line-height: 1.75 !important;
@@ -641,6 +684,39 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* ===== Misc ===== */
 .hidden { display: none !important; }
 
+/* ===== File context menu ===== */
+#file-context-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 210px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--find-bg);
+  color: var(--text);
+  box-shadow: 0 8px 28px var(--find-shadow);
+  user-select: none;
+}
+
+.context-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.context-menu-item:hover, .context-menu-item:focus { background: var(--sidebar-hover); outline: none; }
+.context-menu-item.danger { color: #d93025; }
+.context-menu-icon { width: 16px; text-align: center; color: var(--icon); }
+.context-menu-separator { height: 1px; margin: 4px 2px; background: var(--border); }
+
 /* Drag & drop overlay */
 body.drag-over::after {
   content: 'Drop Markdown file here';
@@ -670,7 +746,7 @@ body.drag-over::after {
    printToPDF renders the whole page: hide the app chrome and turn the single
    scroll container into normal flowing content so every page prints. */
 @media print {
-  #sidebar, #resize-handle, #status-bar, #find-bar { display: none !important; }
+  #sidebar, #resize-handle, #status-bar, #find-bar, #document-title-wrap, #file-context-menu { display: none !important; }
   html, body { height: auto; overflow: visible; }
   #app, #main, #editor-wrapper {
     display: block;

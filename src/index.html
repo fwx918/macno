@@ -70,6 +70,9 @@
     <main id="main">
       <!-- Editor wrapper for centering -->
       <div id="editor-wrapper">
+        <div id="document-title-wrap">
+          <input id="document-title" type="text" value="Untitled" readonly spellcheck="false" aria-label="Document title">
+        </div>
         <div id="editor"></div>
       </div>
 
@@ -84,6 +87,8 @@
       </footer>
     </main>
   </div>
+
+  <div id="file-context-menu" class="hidden" role="menu" aria-label="File actions"></div>
 
   <!-- Find/Replace bar -->
   <div id="find-bar" class="hidden">

@@ -20,6 +20,7 @@ macno —— 一款高度还原 Typora 的 Windows Markdown 编辑器。本文�
 | 文件 | 作用 |
 |------|------|
 | `main.js` | Electron 主进程(文件操作、IPC、菜单) |
+| `file-operations.js` | 文件树创建、重命名、复制及路径安全校验 |
 | `preload.js` | contextBridge API |
 | `src/index.html` | UI 布局 |
 | `src/renderer.js` | 编辑器逻辑、vditor 初始化、侧边栏、快捷键 |

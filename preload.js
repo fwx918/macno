@@ -9,6 +9,12 @@ contextBridge.exposeInMainWorld('api', {
   saveDialog: (defaultPath) => ipcRenderer.invoke('save-dialog', defaultPath),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
+  createMarkdown: (rootPath, directoryPath, name) => ipcRenderer.invoke('create-markdown', { rootPath, directoryPath, name }),
+  createFolder: (rootPath, directoryPath, name) => ipcRenderer.invoke('create-folder', { rootPath, directoryPath, name }),
+  renameEntry: (rootPath, targetPath, newName) => ipcRenderer.invoke('rename-entry', { rootPath, targetPath, newName }),
+  duplicateEntry: (rootPath, targetPath) => ipcRenderer.invoke('duplicate-entry', { rootPath, targetPath }),
+  trashEntry: (rootPath, targetPath) => ipcRenderer.invoke('trash-entry', { rootPath, targetPath }),
+  copyPath: (rootPath, targetPath) => ipcRenderer.invoke('copy-path', { rootPath, targetPath }),
 
   // Directory
   getDirTree: (dirPath) => ipcRenderer.invoke('get-dir-tree', dirPath),

@@ -1,6 +1,6 @@
 {
   "name": "macno",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A beautiful, Typora-like Markdown editor",
   "main": "main.js",
   "author": "macno",
@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging",
+    "test": "node tools/test-outline.js && node tools/test-file-operations.js",
     "make-icons": "electron tools/make-icons.js",
     "build": "electron-builder --win",
     "build:win": "electron-builder --win"
@@ -26,6 +27,7 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "main.js",
+      "file-operations.js",
       "preload.js",
       "src/**/*",
       "assets/welcome.md",
@@ -36,8 +38,18 @@
     "asar": true,
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "assets/icon.ico"
     },

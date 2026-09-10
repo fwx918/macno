@@ -1,9 +1,10 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, nativeTheme, protocol } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, nativeTheme, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const fileOps = require('./file-operations');
 
 // Set userData outside of iCloud to avoid sync/cache issues
 app.setPath('userData', path.join(os.homedir(), 'AppData', 'Roaming', 'macno'));
@@ -35,6 +36,32 @@ function addRecent(filePath) {
   list.unshift(filePath);
   if (list.length > 20) list = list.slice(0, 20);
   saveRecent(list);
+  rebuildMenu();
+}
+
+function samePath(a, b) {
+  return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+}
+
+function pathWithin(parentPath, candidatePath) {
+  const parent = path.resolve(parentPath);
+  const candidate = path.resolve(candidatePath);
+  return samePath(parent, candidate) || candidate.toLowerCase().startsWith((parent + path.sep).toLowerCase());
+}
+
+function rebasePath(candidatePath, oldBase, newBase) {
+  if (!pathWithin(oldBase, candidatePath)) return candidatePath;
+  return path.join(newBase, path.relative(oldBase, candidatePath));
+}
+
+function remapRecent(oldPath, newPath) {
+  const mapped = loadRecent().map(p => rebasePath(p, oldPath, newPath));
+  saveRecent([...new Set(mapped)]);
+  rebuildMenu();
+}
+
+function removeRecentUnder(targetPath) {
+  saveRecent(loadRecent().filter(p => !pathWithin(targetPath, p)));
   rebuildMenu();
 }
 
@@ -227,6 +254,61 @@ ipcMain.handle('open-file-dialog', async () => {
 ipcMain.handle('open-folder-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
   return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('create-markdown', async (_, { rootPath, directoryPath, name }) => {
+  return fileOps.createMarkdown(rootPath, directoryPath, name);
+});
+
+ipcMain.handle('create-folder', async (_, { rootPath, directoryPath, name }) => {
+  return fileOps.createDirectory(rootPath, directoryPath, name);
+});
+
+ipcMain.handle('rename-entry', async (_, { rootPath, targetPath, newName }) => {
+  const sourcePath = fileOps.assertMutableTarget(rootPath, targetPath);
+  const wasDirectory = fs.statSync(sourcePath).isDirectory();
+  const newPath = fileOps.renameEntry(rootPath, sourcePath, newName);
+  remapRecent(sourcePath, newPath);
+  let currentFilePath = currentFile.path;
+  if (currentFilePath && pathWithin(sourcePath, currentFilePath)) {
+    currentFilePath = rebasePath(currentFilePath, sourcePath, newPath);
+    currentFile.path = currentFilePath;
+    setTitle(currentFilePath, currentFile.modified);
+  }
+  return { oldPath: sourcePath, newPath, isDir: wasDirectory, currentFilePath };
+});
+
+ipcMain.handle('duplicate-entry', async (_, { rootPath, targetPath }) => {
+  return fileOps.duplicateFile(rootPath, targetPath);
+});
+
+ipcMain.handle('trash-entry', async (_, { rootPath, targetPath }) => {
+  const safePath = fileOps.assertMutableTarget(rootPath, targetPath);
+  const isDir = fs.statSync(safePath).isDirectory();
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Move to Recycle Bin', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Delete item?',
+    message: `Move "${path.basename(safePath)}" to the Recycle Bin?`,
+    detail: isDir ? 'The folder and everything inside it will be moved.' : 'The file can be restored from the Recycle Bin.',
+  });
+  if (response !== 0) return { trashed: false, affectedCurrent: false };
+  const affectedCurrent = Boolean(currentFile.path && pathWithin(safePath, currentFile.path));
+  await shell.trashItem(safePath);
+  removeRecentUnder(safePath);
+  if (affectedCurrent) {
+    currentFile = { path: null, modified: true };
+    setTitle(null, true);
+  }
+  return { trashed: true, affectedCurrent, isDir };
+});
+
+ipcMain.handle('copy-path', async (_, { rootPath, targetPath }) => {
+  const safePath = fileOps.assertMutableTarget(rootPath, targetPath);
+  clipboard.writeText(safePath);
+  return true;
 });
 
 ipcMain.handle('get-dir-tree', async (_, dirPath) => {
