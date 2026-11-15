@@ -5,8 +5,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   // File operations
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
-  writeFile: (filePath, content) => ipcRenderer.invoke('write-file', { filePath, content }),
-  saveDialog: (defaultPath) => ipcRenderer.invoke('save-dialog', defaultPath),
+  writeFile: (filePath, content, expectedContent) => ipcRenderer.invoke('write-file', { filePath, content, expectedContent }),
+  saveDialog: (defaultPath, type) => ipcRenderer.invoke('save-dialog', { defaultPath, type }),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
   createMarkdown: (rootPath, directoryPath, name) => ipcRenderer.invoke('create-markdown', { rootPath, directoryPath, name }),
@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   renameEntry: (rootPath, targetPath, newName) => ipcRenderer.invoke('rename-entry', { rootPath, targetPath, newName }),
   duplicateEntry: (rootPath, targetPath) => ipcRenderer.invoke('duplicate-entry', { rootPath, targetPath }),
   trashEntry: (rootPath, targetPath) => ipcRenderer.invoke('trash-entry', { rootPath, targetPath }),
-  copyPath: (rootPath, targetPath) => ipcRenderer.invoke('copy-path', { rootPath, targetPath }),
+  copyPath: (rootPath, targetPath, relative) => ipcRenderer.invoke('copy-path', { rootPath, targetPath, relative }),
 
   // Directory
   getDirTree: (dirPath) => ipcRenderer.invoke('get-dir-tree', dirPath),
@@ -25,9 +25,9 @@ contextBridge.exposeInMainWorld('api', {
   addRecent: (filePath) => ipcRenderer.invoke('add-recent', filePath),
 
   // Window state
-  setModified: (modified) => ipcRenderer.invoke('set-modified', modified),
-  setCurrentPath: (filePath) => ipcRenderer.invoke('set-current-path', filePath),
-  getCurrentFile: () => ipcRenderer.invoke('get-current-file'),
+  setActiveDocument: (filePath, modified, type) => ipcRenderer.invoke('set-active-document', { filePath, modified, type }),
+  editorReady: () => ipcRenderer.invoke('editor-ready'),
+  finishClose: () => ipcRenderer.invoke('finish-close'),
 
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Dialogs
   confirmDiscard: (fileName) => ipcRenderer.invoke('confirm-discard', fileName),
+  confirmCopy: (fileName) => ipcRenderer.invoke('confirm-copy', fileName),
   showError: (title, message) => ipcRenderer.invoke('show-error', { title, message }),
 
   // Welcome page (first launch)
@@ -44,12 +45,13 @@ contextBridge.exposeInMainWorld('api', {
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   // Export
-  exportPDF: (defaultName) => ipcRenderer.invoke('export-pdf', { defaultName }),
+  exportPDF: (defaultName, preview) => ipcRenderer.invoke('export-pdf', { defaultName, preview }),
   exportHTML: (html, defaultName) => ipcRenderer.invoke('export-html', { html, defaultName }),
 
   // Shell
   showInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
-  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  createHtmlPreview: (previousUrl, filePath, source) => ipcRenderer.invoke('create-html-preview', { previousUrl, filePath, source }),
+  releaseHtmlPreview: (url) => ipcRenderer.invoke('release-html-preview', url),
 
   // Events from main process
   on: (channel, callback) => {

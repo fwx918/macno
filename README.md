@@ -52,7 +52,8 @@ writing experience to **Windows**.
 
 - **Seamless WYSIWYG editing** — type Markdown and see it render instantly, in place (powered by [vditor](https://github.com/Vanessa219/vditor)'s IR mode). No split preview pane, no clutter.
 - **Inline file title** — the filename appears naturally above the document and can be edited to rename the file without changing its Markdown content.
-- **Sidebar** — document outline, recent files, and a folder file‑tree with right-click create, copy, rename, reveal, and Recycle Bin actions.
+- **Tabs and file actions** — keep Markdown, TXT, and HTML files open together. Right-click a document in Files, Recent, or its tab to copy its path, create a copy, or select it in File Explorer. Each format has a distinct single-color icon.
+- **Local HTML** — open `.html` and `.htm` as a static preview with local images and style sheets, then switch to Source to edit and save. Preview scripts and remote resources are disabled. HTML and TXT editing expects UTF-8.
 - **Focus Mode** (`F8`) — dim everything except the paragraph you're writing.
 - **Typewriter Mode** (`F9`) — keep the current line centered on screen.
 - **Themes** — Light, Dark, GitHub, and Solarized.

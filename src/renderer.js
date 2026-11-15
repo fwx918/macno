@@ -2,20 +2,18 @@
 
 // ===== State =====
 const state = {
-  vditor: null,
-  currentFile: null,       // { path, content }
+  documents: [],
+  currentFile: null,
+  get vditor() { return this.currentFile?.editor; },
   currentFolder: null,
-  modified: false,
   sidebarVisible: true,
   sidebarPanel: 'outline', // outline | recent | files
   focusMode: false,
   typewriterMode: false,
-  editorMode: 'ir',        // ir | sv
   theme: 'light',
   findMatches: [],
   findIndex: 0,
   settings: {},
-  suppressInput: false,    // prevent onEditorInput during programmatic setValue
   expandedFolders: new Set(),
   selectedTreePath: null,
   titleOriginal: 'Untitled',
@@ -60,7 +58,6 @@ async function init() {
   state.theme = state.settings.theme || 'light';
   applyTheme(state.theme);
 
-  await initVditor();
   await loadRecent();
 
   setupSidebar();
@@ -72,36 +69,24 @@ async function init() {
   setupMenuActions();
   setupDocumentTitle();
   setupFileContextMenu();
-
-  // Check if a file was opened from main (command-line argument)
-  const current = await window.api.getCurrentFile();
-  let opened = false;
-  if (current && current.path) {
-    try {
-      await openFile(current.path, await window.api.readFile(current.path));
-      opened = true;
-    } catch { /* file vanished — fall through */ }
-  }
-  if (!opened) {
-    // First launch: show the welcome page as an untitled document
-    const welcome = await window.api.getWelcome();
-    if (welcome) loadUntitled(welcome);
-    else setNewFile();
-  }
+  setupDocumentTabs();
+  const paths = await window.api.editorReady();
+  for (const filePath of paths) await openPath(filePath);
+  if (!state.currentFile) await createDocument(null, await window.api.getWelcome(), 'markdown', true);
 }
 
 // ===== vditor =====
-function makeVditorOptions(mode, content, onReady) {
+function makeVditorOptions(doc, content, onReady) {
   const isDark = state.theme === 'dark';
   const statusH = 28;
   // The title consumes 71px and vditor adds 26px around its configured
   // minimum, so subtract the combined footprint to avoid an empty-page scroll.
   const titleFootprint = 97;
   return {
-    mode,
+    mode: doc.mode,
     minHeight: Math.max(400, window.innerHeight - statusH - titleFootprint),
     cdn: '../node_modules/vditor',
-    toolbar: [],
+    toolbar: ['edit-mode'],
     toolbarConfig: { hide: true },
     outline: { enable: false },
     counter: { enable: false },
@@ -123,31 +108,32 @@ function makeVditorOptions(mode, content, onReady) {
     cache: { enable: false },
     value: content || '',
     after: onReady,
-    input: () => onEditorInput(),
+    input: () => onEditorInput(doc),
     focus: () => {},
     blur: () => {},
     keydown: (e) => handleEditorKeydown(e),
   };
 }
 
-function initVditor() {
+function initVditor(doc, content) {
   return new Promise((resolve) => {
-    state.vditor = new Vditor('editor', makeVditorOptions('ir', '', resolve));
+    doc.editor = new Vditor(doc.panel, makeVditorOptions(doc, content, resolve));
   });
 }
 
 function getEditorEl() {
-  return document.querySelector('.vditor-ir') || document.querySelector('.vditor-sv');
+  return state.currentFile?.panel.querySelector(`.vditor-${state.currentFile.mode}`);
 }
 
 // ===== Editor events =====
-function onEditorInput() {
-  if (state.suppressInput) return;
-  if (!state.modified) {
-    state.modified = true;
-    window.api.setModified(true);
+function onEditorInput(doc = state.currentFile) {
+  if (doc.initializing) return;
+  doc.revision++;
+  if (!doc.modified) {
+    doc.modified = true;
+    syncDocumentState();
   }
-  scheduleDocUpdate();
+  if (state.currentFile === doc) scheduleDocUpdate();
 }
 
 // Outline + word count both call vditor.getValue() (a full serialize), so they
@@ -167,103 +153,351 @@ function handleEditorKeydown(e) {
   }
 }
 
-// ===== File operations =====
+// ===== Documents and tabs =====
+let nextDocumentId = 0;
+let opening = Promise.resolve();
 
-// Returns true when it's safe to replace the current document
-// (nothing modified, user saved, or user chose to discard).
-async function ensureSaved() {
-  if (!state.modified) return true;
-  const name = state.currentFile && state.currentFile.path
-    ? state.currentFile.path.split(/[/\\]/).pop()
-    : 'Untitled';
-  const choice = await window.api.confirmDiscard(name);
-  if (choice === 0) return saveFile();
+function findOpenDocument(filePath) {
+  return state.documents.find(doc => doc.path && normalizedPath(doc.path) === normalizedPath(filePath));
+}
+
+function documentName(doc) {
+  return doc.path ? pathBasename(doc.path) : 'Untitled';
+}
+
+function documentContent(doc = state.currentFile) {
+  return doc.editor ? doc.editor.getValue() : doc.source.value;
+}
+
+function setDocumentContent(content) {
+  const doc = state.currentFile;
+  if (doc.editor) doc.editor.setValue(content);
+  else {
+    // A single native editing command keeps replace undoable.
+    doc.source.focus();
+    doc.source.select();
+    if (document.execCommand('insertText', false, content)) return;
+    doc.source.value = content;
+  }
+  onEditorInput(doc);
+}
+
+async function createDocument(filePath, rawContent, type, placeholder = false) {
+  const raw = rawContent || '';
+  const decoded = documentTypes.decodeSource(raw);
+  const panel = document.createElement('div');
+  const doc = {
+    path: filePath, raw, type, panel, placeholder, modified: false,
+    revision: 0, initializing: true, scrollTop: 0, mode: 'ir', htmlMode: 'preview',
+    bom: decoded.bom, newline: decoded.newline,
+  };
+  panel.id = 'document-' + ++nextDocumentId;
+  panel.className = 'document-editor hidden';
+  panel.setAttribute('role', 'tabpanel');
+  panel.setAttribute('aria-labelledby', panel.id + '-tab');
+  $('#document-editors').appendChild(panel);
+  if (type === 'markdown') {
+    await initVditor(doc, decoded.text);
+  } else {
+    doc.source = document.createElement('textarea');
+    doc.source.className = 'document-source';
+    doc.source.spellcheck = false;
+    doc.source.setAttribute('aria-label', type === 'html' ? 'HTML source' : 'Plain text');
+    doc.source.value = decoded.text;
+    doc.source.addEventListener('input', () => onEditorInput(doc));
+    if (type === 'html') {
+      doc.source.wrap = 'off';
+      doc.preview = document.createElement('iframe');
+      doc.preview.className = 'html-preview';
+      doc.preview.title = 'HTML preview';
+      doc.preview.setAttribute('sandbox', 'allow-popups');
+      panel.appendChild(doc.preview);
+    }
+    panel.appendChild(doc.source);
+  }
+  doc.initializing = false;
+  state.documents.push(doc);
+  activateDocument(doc);
+  return doc;
+}
+
+function activateDocument(doc) {
+  const previous = state.currentFile;
+  if (previous && previous !== doc) {
+    previous.scrollTop = dom.editorWrapper.scrollTop;
+    previous.panel.classList.add('hidden');
+  }
+  state.currentFile = doc;
+  doc.panel.classList.remove('hidden');
+  setEditorTheme(doc);
+  updateDocumentMode(doc);
+  dom.editorWrapper.scrollTop = doc.scrollTop;
+  const editable = doc.panel.querySelector('[contenteditable="true"]');
+  if (doc.selection && editable?.contains(doc.selection.startContainer) &&
+      editable.contains(doc.selection.endContainer)) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(doc.selection);
+  }
+  syncDocumentState();
+  selectTreePath(doc.path);
+  updateOutline();
+  updateWordCount();
+  if (!dom.findBar.classList.contains('hidden')) doFind();
+}
+
+function syncDocumentState() {
+  renderDocumentTabs();
+  const doc = state.currentFile;
+  if (!doc) return;
+  if (dom.documentTitle !== document.activeElement) updateDocumentTitle(doc.path);
+  updateStatusFile(doc.path);
+  window.api.setActiveDocument(doc.path, doc.modified, doc.type);
+}
+
+function renderDocumentTabs() {
+  const bar = $('#document-tabs');
+  const focusedTabId = bar.contains(document.activeElement) ? document.activeElement.id : '';
+  bar.replaceChildren();
+  for (const doc of state.documents) {
+    const active = doc === state.currentFile;
+    const group = document.createElement('div');
+    group.className = 'document-tab' + (active ? ' active' : '');
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.id = doc.panel.id + '-tab';
+    tab.className = 'document-tab-select';
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', doc.panel.id);
+    tab.setAttribute('aria-selected', String(active));
+    tab.title = doc.path || documentName(doc);
+    const label = document.createElement('span');
+    label.className = 'document-tab-name';
+    label.textContent = documentName(doc);
+    tab.append(createFileIcon(doc.type), label);
+    if (doc.modified) {
+      tab.setAttribute('aria-label', documentName(doc) + ', unsaved');
+      const dot = document.createElement('span');
+      dot.className = 'unsaved-dot';
+      tab.append(dot);
+    }
+    tab.addEventListener('click', () => {
+      if (!state.transitioning) activateDocument(doc);
+    });
+    group.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      showFileContextMenu(event.clientX, event.clientY,
+        { name: documentName(doc), path: doc.path, document: doc });
+    });
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.id = doc.panel.id + '-close';
+    close.className = 'document-tab-close';
+    close.title = 'Close ' + documentName(doc);
+    close.setAttribute('aria-label', close.title);
+    close.textContent = '×';
+    close.addEventListener('click', () => closeDocument(doc));
+    group.append(tab, close);
+    bar.appendChild(group);
+  }
+  const focusTarget = document.getElementById(focusedTabId);
+  if (focusTarget) focusTarget.focus({ preventScroll: true });
+  bar.querySelector('.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function setupDocumentTabs() {
+  $$('#html-modes button').forEach(button => {
+    button.addEventListener('click', () => setHtmlMode(state.currentFile, button.dataset.htmlMode));
+  });
+  document.addEventListener('selectionchange', () => {
+    const doc = state.currentFile;
+    const selection = window.getSelection();
+    if (doc?.editor && selection?.rangeCount &&
+        doc.panel.contains(selection.anchorNode) && doc.panel.contains(selection.focusNode)) {
+      doc.selection = selection.getRangeAt(0).cloneRange();
+    }
+  });
+}
+
+function updateDocumentMode(doc) {
+  const html = doc.type === 'html';
+  $('#html-modes').classList.toggle('hidden', !html);
+  dom.editorWrapper.classList.toggle('source-document', !doc.editor);
+  dom.editorWrapper.classList.toggle('typewriter-mode', Boolean(doc.editor && state.typewriterMode));
+  if (html) {
+    doc.source.classList.toggle('hidden', doc.htmlMode !== 'source');
+    doc.preview.classList.toggle('hidden', doc.htmlMode !== 'preview');
+    $$('#html-modes button').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.htmlMode === doc.htmlMode));
+    });
+    if (doc.htmlMode === 'preview') refreshHtmlPreview(doc);
+  }
+  dom.statusMode.textContent = html ? 'HTML' :
+    doc.type === 'text' ? 'TXT' : doc.mode === 'sv' ? 'SOURCE' : 'WYSIWYG';
+}
+
+function setHtmlMode(doc, mode) {
+  if (doc?.type !== 'html' || doc.htmlMode === mode) return;
+  doc.htmlMode = mode;
+  updateDocumentMode(doc);
+  if (mode === 'source') doc.source.focus();
+}
+
+async function refreshHtmlPreview(doc) {
+  const revision = doc.revision;
+  const filePath = doc.path;
+  if (doc.previewRevision === revision && doc.previewPath === filePath) return;
+  const request = Symbol();
+  doc.previewRequest = request;
+  try {
+    const url = await window.api.createHtmlPreview(doc.previewUrl, filePath, doc.source.value);
+    if (doc.previewRequest !== request || !state.documents.includes(doc)) {
+      await window.api.releaseHtmlPreview(url);
+      return;
+    }
+    doc.previewRevision = revision;
+    doc.previewPath = filePath;
+    doc.previewUrl = url;
+    doc.preview.src = url;
+  } catch (err) {
+    await window.api.showError('Cannot preview HTML', err.message);
+  }
+}
+
+function openPath(filePath, { keepPlaceholder = false } = {}) {
+  opening = opening.then(async () => {
+    try {
+      const existing = findOpenDocument(filePath);
+      if (existing) {
+        activateDocument(existing);
+        return existing;
+      }
+      const type = documentTypes.typeOf(filePath);
+      if (!type) throw new Error('Choose a Markdown, TXT, HTML, or HTM file.');
+      const raw = await window.api.readFile(filePath);
+      const placeholder = state.currentFile;
+      const doc = await createDocument(filePath, raw, type);
+      if (!keepPlaceholder && placeholder?.placeholder && !placeholder.modified) {
+        removeDocument(placeholder);
+      }
+      await window.api.addRecent(filePath);
+      if (state.sidebarPanel === 'recent') await loadRecent();
+      return doc;
+    } catch (err) {
+      await window.api.showError('Cannot open file', err.message);
+    }
+  });
+  return opening;
+}
+
+function newFile() {
+  return createDocument(null, '', 'markdown');
+}
+
+function removeDocument(doc) {
+  const index = state.documents.indexOf(doc);
+  if (index < 0) return;
+  state.documents.splice(index, 1);
+  if (doc.previewUrl) window.api.releaseHtmlPreview(doc.previewUrl);
+  doc.editor?.destroy();
+  doc.panel.remove();
+  if (state.currentFile === doc) {
+    state.currentFile = null;
+    const next = state.documents[Math.min(index, state.documents.length - 1)];
+    if (next) activateDocument(next);
+  }
+  renderDocumentTabs();
+}
+
+async function ensureSaved(doc) {
+  if (doc.saving && !(await doc.saving)) return false;
+  if (!doc.modified) return true;
+  const choice = await window.api.confirmDiscard(documentName(doc));
+  if (choice === 0) return saveFile(doc);
   return choice === 1;
 }
 
-// Show content as an in-memory untitled document (new file, welcome page,
-// dropped content without a filesystem path).
-function loadUntitled(content) {
-  state.currentFile = null;
-  state.modified = false;
-  state.suppressInput = true;
-  state.vditor.setValue(content || '');
-  state.suppressInput = false;
-  window.api.setModified(false);
-  window.api.setCurrentPath(null);
-  updateDocumentTitle(null);
-  updateStatusFile(null);
-  updateOutline();
-  updateWordCount();
-}
-
-function setNewFile() {
-  loadUntitled('');
-}
-
-async function newFile() {
-  if (await ensureSaved()) setNewFile();
-}
-
-async function openFile(filePath, content) {
-  state.currentFile = { path: filePath, content };
-  state.modified = false;
-  state.suppressInput = true;
-  state.vditor.setValue(content || '');
-  state.suppressInput = false;
-  window.api.setModified(false);
-  window.api.setCurrentPath(filePath);
-  window.api.addRecent(filePath);
-  updateDocumentTitle(filePath);
-  updateStatusFile(filePath);
-  updateOutline();
-  updateWordCount();
-  // Highlight active item in file tree
-  selectTreePath(filePath);
-}
-
-// Both save functions return true only if the content actually hit disk.
-async function saveFile() {
-  const content = state.vditor.getValue();
-  if (!state.currentFile || !state.currentFile.path) return saveFileAs();
+async function closeDocument(doc) {
+  if (!doc || state.transitioning) return;
+  state.transitioning = true;
   try {
-    await window.api.writeFile(state.currentFile.path, content);
+    if (!(await ensureSaved(doc))) return;
+    removeDocument(doc);
+    if (!state.currentFile) await newFile();
+  } finally {
+    state.transitioning = false;
+  }
+}
+
+async function closeWindow() {
+  if (state.transitioning) return;
+  state.transitioning = true;
+  try {
+    await opening;
+    for (const doc of [...state.documents]) {
+      if (!(await ensureSaved(doc))) return;
+    }
+    await window.api.finishClose();
+  } finally {
+    state.transitioning = false;
+  }
+}
+
+function saveFile(doc = state.currentFile) {
+  return saveDocument(doc, !doc?.path);
+}
+
+function saveFileAs(doc = state.currentFile) {
+  return saveDocument(doc, true);
+}
+
+function saveDocument(doc, choosePath) {
+  if (!doc) return false;
+  if (doc.saving) return doc.saving;
+  if (!choosePath && !doc.modified) return true;
+  doc.saving = writeDocumentToDisk(doc, choosePath).finally(() => { doc.saving = null; });
+  return doc.saving;
+}
+
+async function writeDocumentToDisk(doc, choosePath) {
+  try {
+    const filePath = choosePath ? await window.api.saveDialog(doc.path, doc.type) : doc.path;
+    if (!filePath) return false;
+    if (documentTypes.typeOf(filePath) !== doc.type) {
+      throw new Error('Use an extension for ' + documentTypes.types[doc.type].label + '.');
+    }
+    const other = findOpenDocument(filePath);
+    if (other && other !== doc) throw new Error('This file is already open in another tab.');
+    const sameFile = doc.path && normalizedPath(doc.path) === normalizedPath(filePath);
+    const revision = doc.revision;
+    const raw = doc.modified || !doc.path
+      ? doc.bom + documentContent(doc).replace(/\r\n?|\n/g, doc.newline)
+      : doc.raw;
+    await window.api.writeFile(filePath, raw, sameFile ? doc.raw : undefined);
+    doc.path = filePath;
+    doc.raw = raw;
+    doc.modified = doc.revision !== revision;
+    doc.placeholder = false;
+    syncDocumentState();
+    if (state.currentFile === doc) {
+      selectTreePath(filePath);
+      updateDocumentMode(doc);
+    }
+    if (state.currentFolder && pathIsInside(state.currentFolder, filePath)) {
+      await refreshFileTree();
+    }
+    if (state.sidebarPanel === 'recent') await loadRecent();
+    return true;
   } catch (err) {
-    await window.api.showError('Cannot save file', `${state.currentFile.path}\n\n${err.message}`);
+    await window.api.showError('Cannot save file', err.message);
     return false;
   }
-  state.modified = false;
-  window.api.setModified(false);
-  state.currentFile.content = content;
-  return true;
 }
 
-async function saveFileAs() {
-  const content = state.vditor.getValue();
-  const defaultPath = state.currentFile ? state.currentFile.path : null;
-  const filePath = await window.api.saveDialog(defaultPath);
-  if (!filePath) return false;
-  try {
-    await window.api.writeFile(filePath, content);
-  } catch (err) {
-    await window.api.showError('Cannot save file', `${filePath}\n\n${err.message}`);
-    return false;
-  }
-  state.currentFile = { path: filePath, content };
-  state.modified = false;
-  window.api.setModified(false);
-  window.api.setCurrentPath(filePath);
-  updateDocumentTitle(filePath);
-  updateStatusFile(filePath);
-  if (state.currentFolder && pathIsInside(state.currentFolder, filePath)) {
-    await refreshFileTree({ selectPath: filePath });
-  }
-  return true;
-}
 
 // ===== Outline =====
 function updateOutline() {
-  const content = state.vditor.getValue();
+  const content = state.vditor ? state.vditor.getValue() : '';
   const headings = extractHeadings(content);
   state.outlineHeadings = headings;
   dom.outlineTree.innerHTML = '';
@@ -364,7 +598,7 @@ function jumpToHeading(index, text) {
 
 // ===== Word count =====
 function updateWordCount() {
-  const text = state.vditor.getValue();
+  const text = state.currentFile ? documentContent() : '';
   const chars = text.length;
   // Count words (handle CJK characters as individual words)
   const words = text
@@ -386,6 +620,7 @@ function pathBasename(filePath) {
 function pathDirname(filePath) {
   const value = String(filePath || '');
   const index = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+  if (index === 2 && value[1] === ':') return value.slice(0, 3);
   return index > 0 ? value.slice(0, index) : value;
 }
 
@@ -442,7 +677,7 @@ function setupDocumentTitle() {
     }
   });
   dom.documentTitle.addEventListener('blur', async () => {
-    if (state.cancelTitleRename || !state.currentFile) return;
+    if (state.cancelTitleRename || !state.currentFile?.path) return;
     const requested = dom.documentTitle.value.trim();
     if (!requested || requested === state.titleOriginal) {
       dom.documentTitle.value = state.titleOriginal;
@@ -463,17 +698,6 @@ function setupDocumentTitle() {
   });
 }
 
-function detachCurrentAsUntitled() {
-  state.currentFile = null;
-  state.modified = true;
-  state.selectedTreePath = null;
-  window.api.setCurrentPath(null);
-  window.api.setModified(true);
-  updateDocumentTitle(null);
-  updateStatusFile(null);
-  selectTreePath(null);
-}
-
 // ===== Status bar =====
 function updateStatusFile(filePath) {
   if (filePath) {
@@ -489,7 +713,9 @@ function updateStatusFile(filePath) {
 function setupStatusBar() {
   dom.statusFile.addEventListener('click', () => {
     if (state.currentFile && state.currentFile.path) {
-      window.api.showInFolder(state.currentFile.path);
+      window.api.showInFolder(state.currentFile.path).catch(err => {
+        window.api.showError('Cannot show file', err.message);
+      });
     }
   });
 }
@@ -508,15 +734,17 @@ async function loadRecent() {
     const dir = parts.join('/');
     const el = document.createElement('div');
     el.className = 'recent-item';
-    el.innerHTML = `<div class="recent-name">${escHtml(name)}</div><div class="recent-path">${escHtml(dir)}</div>`;
-    el.addEventListener('click', async () => {
-      if (!(await ensureSaved())) return;
-      try {
-        const content = await window.api.readFile(filePath);
-        await openFile(filePath, content);
-      } catch (e) {
-        window.api.showError('Cannot open file', filePath);
-      }
+    const title = document.createElement('div');
+    title.className = 'recent-name';
+    title.append(createFileIcon(documentTypes.typeOf(name)), document.createTextNode(name));
+    const location = document.createElement('div');
+    location.className = 'recent-path';
+    location.textContent = dir;
+    el.append(title, location);
+    el.addEventListener('click', () => openPath(filePath));
+    el.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      showFileContextMenu(event.clientX, event.clientY, { name, path: filePath });
     });
     dom.recentList.appendChild(el);
   });
@@ -563,9 +791,7 @@ function renderTree(container, nodes, depth) {
 
     const icon = document.createElement('span');
     icon.className = 'tree-icon';
-    if (!node.isDir) {
-      icon.innerHTML = getFileIcon(node.name);
-    }
+    icon.append(createFileIcon(node.isDir ? 'folder' : documentTypes.typeOf(node.name)));
 
     const name = document.createElement('span');
     name.className = 'tree-name';
@@ -605,16 +831,9 @@ function renderTree(container, nodes, depth) {
         selectTreePath(node.path);
       });
     } else {
-      item.addEventListener('click', async () => {
+      item.addEventListener('click', () => {
         selectTreePath(node.path);
-        if (!isEditableDocument(node.name)) return;
-        if (!(await ensureSaved())) return;
-        try {
-          const content = await window.api.readFile(node.path);
-          await openFile(node.path, content);
-        } catch (e) {
-          window.api.showError('Cannot open file', node.path);
-        }
+        if (documentTypes.typeOf(node.name)) openPath(node.path);
       });
     }
   });
@@ -628,87 +847,195 @@ function selectTreePath(filePath) {
   if (treeItem) treeItem.classList.add('active');
 }
 
-function getFileIcon(name) {
-  if (isMarkdown(name)) return '📄';
-  if (name.endsWith('.txt')) return '📝';
-  if (name.endsWith('.json')) return '📋';
-  if (name.endsWith('.js') || name.endsWith('.ts')) return '⚡';
-  if (name.endsWith('.css') || name.endsWith('.scss')) return '🎨';
-  return '📄';
+const documentIcon = 'M4 1.5h5l3 3V14a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5Z M9 1.5v3h3';
+const fileIcons = {
+  markdown: documentIcon + ' M5.7 11V7.6l2.3 2 2.3-2V11',
+  text: documentIcon + ' M6 7.5h4 M6 9.7h4 M6 11.9h2.5',
+  html: documentIcon + ' M7.2 8l-1.5 1.6 1.5 1.6m1.6-3.2 1.5 1.6-1.5 1.6',
+  folder: 'M1.5 12.5v-9h4.3l1.6 2h7.1v7Z',
+  generic: documentIcon,
+};
+const menuIcons = {
+  open: 'M2 3.5h12v9H2Z M5 8h6m-2-2 2 2-2 2',
+  tab: 'M2 3.5h12v9H2Z M2 6h12m-8 3h4m-2-2v4',
+  duplicate: 'M5.5 5h8v9h-8Z M10.5 2H2.5v9',
+  copy: 'M5.5 3.5h-2v10h9v-10h-2 M6 2h4v3H6Z',
+  reveal: 'M2 13V5h4l1-2h7v10Z M7 10l4-4m-4 0h4v4',
+  rename: 'm2.5 13 .6-3.2 7.6-7.6 2.7 2.7-7.6 7.6Z M9.4 3.5l2.7 2.7',
+  trash: 'M2.5 4.5h11m-9 0 .6 9h5.8l.6-9M6 4.5v-2h4v2m-3 2v4m2-4v4',
+  add: 'M3 2h7l3 3v9H3Z M8 7v5m-2-2.5h4',
+  folder: fileIcons.folder,
+};
+
+function lineIcon(path) {
+  const namespace = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(namespace, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.25');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const shape = document.createElementNS(namespace, 'path');
+  shape.setAttribute('d', path);
+  svg.append(shape);
+  return svg;
 }
 
-function isMarkdown(name) {
-  return /\.(md|markdown)$/i.test(name);
+function createFileIcon(type) {
+  const icon = document.createElement('span');
+  icon.className = 'file-type-icon';
+  icon.dataset.type = type || 'generic';
+  icon.title = documentTypes.types[type]?.label || (type === 'folder' ? 'Folder' : 'File');
+  icon.setAttribute('role', 'img');
+  icon.setAttribute('aria-label', icon.title);
+  icon.append(lineIcon(fileIcons[type] || fileIcons.generic));
+  return icon;
 }
 
-function isEditableDocument(name) {
-  return /\.(md|markdown|txt)$/i.test(name);
-}
+// ===== File context menu =====
+let previousMenuFocus;
+let menuParent;
+let toastTimeout;
 
-// ===== File tree context menu =====
 function setupFileContextMenu() {
-  dom.fileTree.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('.tree-item')) return;
-    e.preventDefault();
+  dom.fileTree.addEventListener('contextmenu', event => {
+    if (event.target.closest('.tree-item')) return;
+    event.preventDefault();
     selectTreePath(null);
-    showFileContextMenu(e.clientX, e.clientY, null);
+    showFileContextMenu(event.clientX, event.clientY, null);
   });
-  document.addEventListener('mousedown', (e) => {
-    if (!dom.fileContextMenu.contains(e.target)) hideFileContextMenu();
+  document.addEventListener('mousedown', event => {
+    if (!dom.fileContextMenu.contains(event.target)) hideFileContextMenu();
   });
-  document.addEventListener('scroll', hideFileContextMenu, true);
-  window.addEventListener('blur', hideFileContextMenu);
+  document.addEventListener('scroll', event => {
+    if (!dom.fileContextMenu.contains(event.target)) hideFileContextMenu();
+  }, true);
+  window.addEventListener('blur', () => hideFileContextMenu());
+  dom.fileContextMenu.addEventListener('keydown', event => {
+    const items = [...dom.fileContextMenu.querySelectorAll('button:not(:disabled)')];
+    const index = items.indexOf(document.activeElement);
+    if (event.key === 'Escape') hideFileContextMenu(true);
+    else if (event.key === 'ArrowLeft' && menuParent) menuParent();
+    else if (event.key === 'ArrowRight' && document.activeElement?.hasAttribute('aria-haspopup')) {
+      document.activeElement.click();
+    } else if (event.key === 'ArrowDown' && items.length) items[(index + 1) % items.length].focus();
+    else if (event.key === 'ArrowUp' && items.length) items[(index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length)].focus();
+    else return;
+    event.preventDefault();
+    event.stopPropagation();
+  });
 }
 
-function hideFileContextMenu() {
+function hideFileContextMenu(restoreFocus = false) {
+  if (dom.fileContextMenu.classList.contains('hidden')) return;
   dom.fileContextMenu.classList.add('hidden');
+  if (restoreFocus) previousMenuFocus?.focus({ preventScroll: true });
+  previousMenuFocus = null;
+  menuParent = null;
 }
 
 function showFileContextMenu(x, y, node) {
-  if (!state.currentFolder) return;
-  const items = [
-    { action: 'new-markdown', label: 'New Markdown File', icon: '＋' },
-    { action: 'new-folder', label: 'New Folder', icon: '▱' },
-  ];
-  if (node) {
-    if (!node.isDir) items.push({ separator: true }, { action: 'duplicate', label: 'Create Copy', icon: '⧉' });
-    items.push(
-      { separator: true },
-      { action: 'copy-path', label: 'Copy Path', icon: '⌘' },
-      { action: 'show-in-folder', label: 'Show in File Explorer', icon: '↗' },
-      { separator: true },
-      { action: 'rename', label: 'Rename', icon: '✎' },
-      { action: 'trash', label: 'Move to Recycle Bin', icon: '⌫', danger: true },
-    );
+  if (!node && !state.currentFolder) return;
+  if (state.transitioning) return;
+  if (dom.fileContextMenu.classList.contains('hidden')) previousMenuFocus = document.activeElement;
+  const groups = [];
+  if (!node || node.isDir) {
+    groups.push([
+      { action: 'new-markdown', label: 'New Markdown File', icon: 'add' },
+      { action: 'new-folder', label: 'New Folder', icon: 'folder' },
+    ]);
+  } else if (documentTypes.typeOf(node.name)) {
+    groups.push([
+      { action: 'open', label: 'Open', icon: 'open' },
+      { action: 'open-tab', label: 'Open in New Tab', icon: 'tab' },
+    ]);
   }
-  dom.fileContextMenu.innerHTML = '';
-  items.forEach(entry => {
-    if (entry.separator) {
+
+  if (node) {
+    const disabled = !node.path;
+    const relative = node.path && pathIsInside(state.currentFolder, node.path);
+    if (!node.isDir) groups.push([{ action: 'duplicate', label: 'Create Copy', icon: 'duplicate', disabled }]);
+    groups.push([
+      {
+        label: 'Copy Path', icon: 'copy', disabled,
+        children: [
+          { action: 'copy-full-path', label: 'Full Path', icon: 'copy' },
+          { action: 'copy-relative-path', label: 'Relative Path', icon: 'copy', disabled: !relative },
+        ],
+      },
+      { action: 'show-in-folder', label: 'Show in File Explorer', icon: 'reveal', disabled },
+    ], [
+      { action: 'rename', label: 'Rename', icon: 'rename', disabled },
+      { action: 'trash', label: 'Move to Recycle Bin', icon: 'trash', disabled, danger: true },
+    ]);
+  }
+  renderFileMenu(groups, x, y, node);
+}
+
+function renderFileMenu(groups, x, y, node, back = null) {
+  menuParent = back;
+  dom.fileContextMenu.replaceChildren();
+  groups.forEach((group, index) => {
+    if (index) {
       const separator = document.createElement('div');
       separator.className = 'context-menu-separator';
+      separator.setAttribute('role', 'separator');
       dom.fileContextMenu.appendChild(separator);
-      return;
     }
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `context-menu-item${entry.danger ? ' danger' : ''}`;
-    button.setAttribute('role', 'menuitem');
-    const icon = document.createElement('span');
-    icon.className = 'context-menu-icon';
-    icon.textContent = entry.icon;
-    const label = document.createElement('span');
-    label.textContent = entry.label;
-    button.append(icon, label);
-    button.addEventListener('click', () => {
-      hideFileContextMenu();
-      runFileAction(entry.action, node);
-    });
-    dom.fileContextMenu.appendChild(button);
+    for (const entry of group) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'context-menu-item' + (entry.danger ? ' danger' : '');
+      button.setAttribute('role', 'menuitem');
+      button.disabled = Boolean(entry.disabled);
+      const icon = document.createElement('span');
+      icon.className = 'context-menu-icon';
+      icon.append(lineIcon(menuIcons[entry.icon]));
+      const label = document.createElement('span');
+      label.textContent = entry.label;
+      button.append(icon, label);
+      if (entry.children) {
+        button.setAttribute('aria-haspopup', 'menu');
+        const arrow = document.createElement('span');
+        arrow.className = 'context-menu-arrow';
+        arrow.textContent = '›';
+        button.append(arrow);
+        button.addEventListener('click', () => {
+          const showParent = () => renderFileMenu(groups, x, y, node);
+          renderFileMenu(
+            [[{ action: 'back', label: 'Back', icon: 'open' }], entry.children],
+            x, y, node, showParent,
+          );
+        });
+      } else {
+        button.addEventListener('click', () => {
+          if (entry.action === 'back') {
+            back();
+            return;
+          }
+          hideFileContextMenu(true);
+          runFileAction(entry.action, node);
+        });
+      }
+      dom.fileContextMenu.appendChild(button);
+    }
   });
   dom.fileContextMenu.classList.remove('hidden');
   const rect = dom.fileContextMenu.getBoundingClientRect();
-  dom.fileContextMenu.style.left = `${Math.max(6, Math.min(x, window.innerWidth - rect.width - 6))}px`;
-  dom.fileContextMenu.style.top = `${Math.max(6, Math.min(y, window.innerHeight - rect.height - 6))}px`;
+  dom.fileContextMenu.style.left = Math.max(6, Math.min(x, window.innerWidth - rect.width - 6)) + 'px';
+  dom.fileContextMenu.style.top = Math.max(6, Math.min(y, window.innerHeight - rect.height - 6)) + 'px';
+  const firstEnabled = back ? 'button:nth-of-type(2):not(:disabled)' : 'button:not(:disabled)';
+  dom.fileContextMenu.querySelector(firstEnabled)?.focus({ preventScroll: true });
+}
+
+function showFileToast(message) {
+  const toast = $('#file-toast');
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.add('hidden'), 1800);
 }
 
 function contextDirectory(node) {
@@ -716,23 +1043,35 @@ function contextDirectory(node) {
   return node.isDir ? node.path : pathDirname(node.path);
 }
 
+function operationRoot(filePath) {
+  return pathIsInside(state.currentFolder, filePath) ? state.currentFolder : pathDirname(filePath);
+}
+
 async function runFileAction(action, node) {
+  if (state.transitioning) return;
   try {
-    if (action === 'new-markdown') {
-      if (!(await ensureSaved())) return;
-      await startInlineCreate(contextDirectory(node), 'markdown');
-    } else if (action === 'new-folder') {
-      await startInlineCreate(contextDirectory(node), 'folder');
+    if (action === 'open' || action === 'open-tab') {
+      await openPath(node.path, { keepPlaceholder: action === 'open-tab' });
+    } else if (action === 'new-markdown' || action === 'new-folder') {
+      await startInlineCreate(contextDirectory(node), action === 'new-markdown' ? 'markdown' : 'folder');
     } else if (action === 'duplicate') {
-      const newPath = await window.api.duplicateEntry(state.currentFolder, node.path);
-      state.selectedTreePath = newPath;
+      const doc = findOpenDocument(node.path);
+      if (doc?.modified) {
+        const choice = await window.api.confirmCopy(node.name);
+        if (choice === 2 || (choice === 0 && !(await saveFile(doc)))) return;
+      }
+      const newPath = await window.api.duplicateEntry(operationRoot(node.path), node.path);
       await refreshFileTree({ selectPath: newPath });
-    } else if (action === 'copy-path') {
-      await window.api.copyPath(state.currentFolder, node.path);
+      showFileToast('Copy created');
+    } else if (action === 'copy-full-path' || action === 'copy-relative-path') {
+      const relative = action === 'copy-relative-path';
+      await window.api.copyPath(relative ? state.currentFolder : operationRoot(node.path), node.path, relative);
+      showFileToast('Path copied');
     } else if (action === 'show-in-folder') {
       await window.api.showInFolder(node.path);
     } else if (action === 'rename') {
-      startInlineRename(node);
+      if (node.isDir) startInlineRename(node);
+      else await renameDocument(node);
     } else if (action === 'trash') {
       await trashTreeEntry(node);
     }
@@ -740,6 +1079,25 @@ async function runFileAction(action, node) {
     await window.api.showError('File operation failed', err.message);
   }
 }
+
+async function renameDocument(node) {
+  const dialog = $('#rename-dialog');
+  const input = $('#rename-name');
+  dialog.returnValue = 'cancel';
+  input.value = pathStem(node.name);
+  const renamed = await new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'rename'), { once: true });
+    dialog.showModal();
+    input.select();
+  });
+  const requested = input.value.trim();
+  if (!renamed || !requested || requested === pathStem(node.name)) return;
+  const source = findOpenDocument(node.path);
+  if (source?.saving) await source.saving;
+  const result = await window.api.renameEntry(operationRoot(node.path), node.path, requested + pathExtension(node.name));
+  await applyRenameResult(result);
+}
+
 
 async function startInlineCreate(directoryPath, kind) {
   if (normalizedPath(directoryPath) !== normalizedPath(state.currentFolder)) {
@@ -782,7 +1140,7 @@ async function startInlineCreate(directoryPath, kind) {
       state.selectedTreePath = newPath;
       await refreshFileTree({ selectPath: newPath });
       if (kind === 'markdown') {
-        await openFile(newPath, await window.api.readFile(newPath));
+        await openPath(newPath);
       }
     } catch (err) {
       await window.api.showError(kind === 'markdown' ? 'Cannot create file' : 'Cannot create folder', err.message);
@@ -850,23 +1208,37 @@ async function applyRenameResult(result) {
   } else {
     state.selectedTreePath = result.newPath;
   }
-  if (state.currentFile && pathIsInside(result.oldPath, state.currentFile.path)) {
-    state.currentFile.path = result.currentFilePath || rebaseClientPath(state.currentFile.path, result.oldPath, result.newPath);
-    updateDocumentTitle(state.currentFile.path);
-    updateStatusFile(state.currentFile.path);
+  for (const doc of state.documents) {
+    if (pathIsInside(result.oldPath, doc.path)) {
+      doc.path = rebaseClientPath(doc.path, result.oldPath, result.newPath);
+    }
   }
+  syncDocumentState();
+  if (state.currentFile) updateDocumentMode(state.currentFile);
   await refreshFileTree({ selectPath: state.selectedTreePath });
   if (state.sidebarPanel === 'recent') await loadRecent();
 }
 
 async function trashTreeEntry(node) {
-  const result = await window.api.trashEntry(state.currentFolder, node.path);
-  if (!result.trashed) return;
-  state.expandedFolders = new Set([...state.expandedFolders].filter(p => !pathIsInside(node.path, p)));
-  if (state.selectedTreePath && pathIsInside(node.path, state.selectedTreePath)) state.selectedTreePath = null;
-  if (result.affectedCurrent) detachCurrentAsUntitled();
-  await refreshFileTree();
-  if (state.sidebarPanel === 'recent') await loadRecent();
+  state.transitioning = true;
+  try {
+    const affected = state.documents.filter(doc => pathIsInside(node.path, doc.path));
+    for (const doc of affected) {
+      if (!(await ensureSaved(doc))) return;
+    }
+    const result = await window.api.trashEntry(operationRoot(node.path), node.path);
+    if (!result.trashed) return;
+    state.expandedFolders = new Set([...state.expandedFolders].filter(p => !pathIsInside(node.path, p)));
+    for (const doc of affected) {
+      if (pathIsInside(node.path, doc.path)) removeDocument(doc);
+    }
+    if (!state.currentFile) await newFile();
+    if (state.selectedTreePath && pathIsInside(node.path, state.selectedTreePath)) state.selectedTreePath = null;
+    await refreshFileTree();
+    if (state.sidebarPanel === 'recent') await loadRecent();
+  } finally {
+    state.transitioning = false;
+  }
 }
 
 // ===== Sidebar =====
@@ -940,20 +1312,15 @@ function setupDragDrop() {
     e.preventDefault();
     document.body.classList.remove('drag-over');
     const files = [...e.dataTransfer.files];
-    const mdFile = files.find(f => /\.(md|markdown|txt)$/i.test(f.name));
-    if (!mdFile) return;
-    if (!(await ensureSaved())) return;
-    const filePath = window.api.getPathForFile(mdFile);
-    if (filePath) {
-      try {
-        const content = await window.api.readFile(filePath);
-        await openFile(filePath, content);
-      } catch (err) {
-        window.api.showError('Cannot open file', filePath);
+    for (const file of files) {
+      const type = documentTypes.typeOf(file.name);
+      if (!type) continue;
+      const filePath = window.api.getPathForFile(file);
+      if (filePath) await openPath(filePath);
+      else {
+        const doc = await createDocument(null, await file.text(), type);
+        onEditorInput(doc);
       }
-    } else {
-      // No filesystem path available — load the content as an untitled doc
-      loadUntitled(await mdFile.text());
     }
   });
 }
@@ -977,12 +1344,15 @@ function setupFindBar() {
 }
 
 function showFindBar(replace = false) {
+  if (!state.currentFile) return;
+  setHtmlMode(state.currentFile, 'source');
   dom.findBar.classList.remove('hidden');
   dom.replaceInput.classList.toggle('hidden', !replace);
   dom.replaceOne.classList.toggle('hidden', !replace);
   dom.replaceAll.classList.toggle('hidden', !replace);
   dom.findInput.focus();
   dom.findInput.select();
+  doFind();
 }
 
 function hideFindBar() {
@@ -997,8 +1367,8 @@ function doFind() {
   const q = dom.findInput.value;
   state.findMatches = [];
   state.findIndex = -1; // nothing visited yet
-  if (!q) { dom.findCount.textContent = ''; return; }
-  const content = state.vditor.getValue();
+  if (!q || !state.currentFile) { dom.findCount.textContent = ''; return; }
+  const content = documentContent();
   const lower = content.toLowerCase();
   const qLower = q.toLowerCase();
   let idx = 0;
@@ -1018,8 +1388,14 @@ function findNavigate(dir) {
   if (state.findIndex === -1) state.findIndex = dir > 0 ? 0 : n - 1;
   else state.findIndex = (state.findIndex + dir + n) % n;
   dom.findCount.textContent = `${state.findIndex + 1} / ${n}`;
-  // Highlight & scroll the rendered document to the next occurrence
-  window.find(q, false, dir < 0, true, false, false, false);
+  if (state.currentFile.source) {
+    setHtmlMode(state.currentFile, 'source');
+    const offset = state.findMatches[state.findIndex];
+    state.currentFile.source.focus();
+    state.currentFile.source.setSelectionRange(offset, offset + q.length);
+  } else {
+    window.find(q, false, dir < 0, true, false, false, false);
+  }
 }
 
 function doReplaceOne() {
@@ -1032,12 +1408,12 @@ function doReplaceOne() {
   if (!state.findMatches.length) return;
   const at = keep >= 0 && keep < state.findMatches.length ? keep : 0;
   const pos = state.findMatches[at];
-  const content = state.vditor.getValue();
+  const content = documentContent();
   // Positional splice: replaces exactly the current occurrence and keeps
   // `$`-patterns in the replacement string literal.
   const newContent = content.slice(0, pos) + r + content.slice(pos + q.length);
-  state.vditor.setValue(newContent);
-  onEditorInput();
+  setHtmlMode(state.currentFile, 'source');
+  setDocumentContent(newContent);
   doFind();
   if (state.findMatches.length) {
     state.findIndex = Math.min(at, state.findMatches.length - 1);
@@ -1049,7 +1425,8 @@ function doReplaceAll() {
   const q = dom.findInput.value;
   const r = dom.replaceInput.value;
   if (!q) return;
-  const content = state.vditor.getValue();
+  if (!state.currentFile) return;
+  const content = documentContent();
   const lower = content.toLowerCase();
   const qLower = q.toLowerCase();
   let out = '';
@@ -1061,8 +1438,8 @@ function doReplaceAll() {
   }
   out += content.slice(i);
   if (out === content) return;
-  state.vditor.setValue(out);
-  onEditorInput();
+  setHtmlMode(state.currentFile, 'source');
+  setDocumentContent(out);
   doFind();
 }
 
@@ -1070,23 +1447,23 @@ function doReplaceAll() {
 function applyTheme(theme) {
   state.theme = theme;
   document.documentElement.dataset.theme = theme;
-  // Update vditor theme if already initialized
-  if (state.vditor) {
-    const isDark = theme === 'dark';
-    // vditor.setTheme(theme, contentTheme, codeTheme)
-    state.vditor.setTheme(
-      isDark ? 'dark' : 'classic',
-      isDark ? 'dark' : 'light',
-      isDark ? 'github-dark' : 'github'
-    );
-  }
+  if (state.currentFile) setEditorTheme(state.currentFile);
   // Persist
   state.settings.theme = theme;
   window.api.saveSettings(state.settings);
 }
 
+function setEditorTheme(doc) {
+  if (!doc.editor || doc.theme === state.theme) return;
+  doc.theme = state.theme;
+  const dark = doc.theme === 'dark';
+  doc.editor.setTheme(dark ? 'dark' : 'classic', dark ? 'dark' : 'light',
+    dark ? 'github-dark' : 'github');
+}
+
 // ===== Focus / Typewriter mode =====
 function toggleFocusMode() {
+  if (!state.vditor) return;
   state.focusMode = !state.focusMode;
   const el = getEditorEl();
   if (el) el.classList.toggle('focus-mode', state.focusMode);
@@ -1101,7 +1478,7 @@ function toggleFocusMode() {
 // focus-mode CSS can highlight it. The editor is one contenteditable, so this
 // has to be tracked from the selection — CSS alone can't tell blocks apart.
 function updateCurrentBlock() {
-  const editable = document.querySelector('.vditor-ir > .vditor-reset');
+  const editable = getEditorEl()?.querySelector(':scope > .vditor-reset');
   if (!editable) return;
   let block = null;
   const sel = window.getSelection();
@@ -1131,6 +1508,7 @@ document.addEventListener('selectionchange', () => {
 });
 
 function toggleTypewriterMode() {
+  if (!state.vditor) return;
   state.typewriterMode = !state.typewriterMode;
   dom.editorWrapper.classList.toggle('typewriter-mode', state.typewriterMode);
   if (state.typewriterMode) scrollToCursor();
@@ -1149,24 +1527,34 @@ function scrollToCursor() {
 
 // ===== Editor mode (ir / sv) =====
 async function toggleSourceMode() {
-  const newMode = state.editorMode === 'ir' ? 'sv' : 'ir';
-  const content = state.vditor.getValue();
-  state.editorMode = newMode;
+  const doc = state.currentFile;
+  if (doc?.type === 'html') {
+    setHtmlMode(doc, doc.htmlMode === 'preview' ? 'source' : 'preview');
+    return;
+  }
+  if (!doc?.editor || doc.initializing) return;
+  const newMode = doc.mode === 'ir' ? 'sv' : 'ir';
+  doc.mode = newMode;
 
   // Destroy and reinit vditor with the new mode, using the same option set as
   // the initial editor so behavior doesn't drift between modes.
-  state.vditor.destroy();
-  document.getElementById('editor').innerHTML = '';
-  await new Promise((resolve) => {
-    state.vditor = new Vditor('editor', makeVditorOptions(newMode, content, resolve));
-  });
+  const button = doc.editor.vditor.toolbar.elements['edit-mode']
+    ?.querySelector(`[data-mode="${newMode}"]`);
+  if (button) button.click();
+  else {
+    const content = doc.editor.getValue();
+    doc.initializing = true;
+    doc.editor.destroy();
+    await initVditor(doc, content);
+    doc.initializing = false;
+  }
   // Re-apply per-editor state lost when the DOM was rebuilt
   if (state.focusMode) {
     const el = getEditorEl();
     if (el) el.classList.add('focus-mode');
     updateCurrentBlock();
   }
-  dom.statusMode.textContent = newMode === 'sv' ? 'SOURCE' : 'WYSIWYG';
+  if (doc === state.currentFile) updateDocumentMode(doc);
 }
 
 // ===== Keyboard shortcuts =====
@@ -1177,6 +1565,7 @@ function setupKeyboardShortcuts() {
     if (ctrl && e.key === 'S') { e.preventDefault(); saveFileAs(); return; }
     if (ctrl && e.key === 'o' && !e.shiftKey) { e.preventDefault(); doMenuOpen(); return; }
     if (ctrl && e.key === 'n' && !e.shiftKey) { e.preventDefault(); newFile(); return; }
+    if (ctrl && e.key === 'w' && state.currentFile) { e.preventDefault(); closeDocument(state.currentFile); return; }
     if (ctrl && e.key === '/') { e.preventDefault(); toggleSourceMode(); return; }
     if (ctrl && e.key === 'f' && !e.shiftKey) { e.preventDefault(); showFindBar(false); return; }
     if (ctrl && e.key === 'h') { e.preventDefault(); showFindBar(true); return; }
@@ -1194,25 +1583,13 @@ function setupKeyboardShortcuts() {
 // ===== Menu actions from main =====
 function setupMenuActions() {
   window.api.on('menu-action', handleMenuAction);
-  window.api.on('open-file', async ({ path, content }) => {
-    if (await ensureSaved()) {
-      await openFile(path, content);
-    } else {
-      // Main already switched its current-file state before sending; restore ours
-      window.api.setCurrentPath(state.currentFile ? state.currentFile.path : null);
-      window.api.setModified(state.modified);
-    }
-  });
+  window.api.on('open-file', openPath);
   window.api.on('open-folder', (folder) => openFolder(folder));
 }
 
 async function doMenuOpen() {
-  if (!(await ensureSaved())) return;
-  const result = await window.api.openFileDialog();
-  if (result) {
-    await openFile(result.path, result.content);
-    await loadRecent();
-  }
+  const filePath = await window.api.openFileDialog();
+  if (filePath) await openPath(filePath);
 }
 
 async function handleMenuAction(action) {
@@ -1220,10 +1597,8 @@ async function handleMenuAction(action) {
     case 'new': await newFile(); break;
     case 'save': await saveFile(); break;
     case 'save-as': await saveFileAs(); break;
-    case 'save-then-close':
-      // Only close if the save actually happened (not cancelled / failed)
-      if (await saveFile()) window.close();
-      break;
+    case 'close-tab': await closeDocument(state.currentFile); break;
+    case 'close-window': await closeWindow(); break;
     case 'export-pdf': await exportPDF(); break;
     case 'export-html': await exportHTML(); break;
     case 'find': showFindBar(false); break;
@@ -1268,22 +1643,26 @@ function insertHeading(level) {
 
 // ===== Export =====
 async function exportPDF() {
-  const name = state.currentFile
-    ? state.currentFile.path.split(/[/\\]/).pop().replace(/\.\w+$/, '.pdf')
-    : 'document.pdf';
+  const doc = state.currentFile;
+  if (!doc) return;
+  const name = pathStem(documentName(doc)) + '.pdf';
   try {
-    await window.api.exportPDF(name);
+    const source = doc.type === 'html' ? doc.source.value :
+      doc.type === 'text' ? '<pre style="white-space: pre-wrap">' + escHtml(doc.source.value) + '</pre>' : null;
+    await window.api.exportPDF(name, source === null ? null : { filePath: doc.path, source });
   } catch (err) {
     window.api.showError('PDF export failed', err.message);
   }
 }
 
 async function exportHTML() {
-  const html = state.vditor.getHTML();
-  const name = state.currentFile
-    ? state.currentFile.path.split(/[/\\]/).pop().replace(/\.\w+$/, '.html')
-    : 'document.html';
-  const fullHtml = buildExportHTML(html, name.replace('.html', ''));
+  const doc = state.currentFile;
+  if (!doc) return;
+  const stem = pathStem(documentName(doc));
+  const name = stem + (doc.type === 'html' ? '-export.html' : '.html');
+  const body = doc.editor ? doc.editor.getHTML() : '<pre>' + escHtml(doc.source.value) + '</pre>';
+  const fullHtml = doc.type === 'html' ? (doc.modified ? doc.bom + doc.source.value.replace(/\n/g, doc.newline) : doc.raw) :
+    buildExportHTML(body, stem);
   try {
     await window.api.exportHTML(fullHtml, name);
   } catch (err) {

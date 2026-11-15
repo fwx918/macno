@@ -10,8 +10,8 @@ const ROOT = path.join(__dirname, '..');
 
 // Stub every channel the renderer invokes during init.
 const handlers = {
-  'get-settings': {}, 'get-recent': [], 'get-current-file': null,
-  'set-modified': true, 'set-current-path': true, 'add-recent': true,
+  'get-settings': {}, 'get-recent': [], 'editor-ready': [],
+  'set-active-document': true, 'add-recent': true,
   'read-file': '', 'read-dir': [], 'get-dir-tree': null,
   'get-welcome': null, 'confirm-discard': 1,
 };
@@ -64,7 +64,7 @@ app.whenReady().then(async () => {
   await sleep(600);
 
   const report = await win.webContents.executeJavaScript(`(() => {
-    const sels = ['#editor-wrapper','#editor','.vditor','.vditor-content','.vditor-ir','.vditor-reset'];
+    const sels = ['#editor-wrapper','#document-editors','.vditor','.vditor-content','.vditor-ir','.vditor-reset'];
     const out = { winInner: innerWidth + 'x' + innerHeight, chain: {}, suspects: [] };
     sels.forEach(s => {
       const el = document.querySelector(s);

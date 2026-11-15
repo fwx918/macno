@@ -8,10 +8,10 @@ const ROOT = path.join(__dirname, '..');
 const welcome = fs.readFileSync(path.join(ROOT, 'assets', 'welcome.md'), 'utf8');
 
 for (const ch of ['get-settings']) ipcMain.handle(ch, () => ({ theme: 'light' }));
-for (const ch of ['get-recent', 'read-dir']) ipcMain.handle(ch, () => []);
-for (const ch of ['get-current-file', 'get-dir-tree', 'get-welcome']) ipcMain.handle(ch, () => null);
+for (const ch of ['get-recent', 'read-dir', 'editor-ready']) ipcMain.handle(ch, () => []);
+for (const ch of ['get-dir-tree', 'get-welcome']) ipcMain.handle(ch, () => null);
 ipcMain.handle('confirm-discard', () => 1);
-for (const ch of ['set-modified', 'set-current-path', 'add-recent', 'write-file',
+for (const ch of ['set-active-document', 'add-recent', 'write-file',
   'save-dialog', 'open-file-dialog', 'open-folder-dialog', 'save-settings',
   'export-pdf', 'export-html', 'show-item-in-folder', 'open-external', 'read-file',
   'show-error']) {

@@ -68,12 +68,17 @@
 
     <!-- Main editor area -->
     <main id="main">
+      <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
+      <div id="html-modes" class="hidden" aria-label="HTML view">
+        <button type="button" data-html-mode="preview">Preview</button>
+        <button type="button" data-html-mode="source">Source</button>
+      </div>
       <!-- Editor wrapper for centering -->
       <div id="editor-wrapper">
         <div id="document-title-wrap">
           <input id="document-title" type="text" value="Untitled" readonly spellcheck="false" aria-label="Document title">
         </div>
-        <div id="editor"></div>
+        <div id="document-editors"></div>
       </div>
 
       <!-- Status bar -->
@@ -89,6 +94,17 @@
   </div>
 
   <div id="file-context-menu" class="hidden" role="menu" aria-label="File actions"></div>
+  <div id="file-toast" class="hidden" role="status"></div>
+  <dialog id="rename-dialog" aria-labelledby="rename-label">
+    <form method="dialog">
+      <label id="rename-label" for="rename-name">Rename</label>
+      <input id="rename-name" type="text" required spellcheck="false">
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="rename">Rename</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Find/Replace bar -->
   <div id="find-bar" class="hidden">
@@ -107,6 +123,7 @@
   </div>
 
   <script src="../node_modules/vditor/dist/index.min.js"></script>
+  <script src="document-types.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

@@ -4,13 +4,25 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, nativeTheme
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { fileURLToPath } = require('node:url');
 const fileOps = require('./file-operations');
+const { readDocument, writeDocument } = require('./document-files');
+const { types, typeOf } = require('./src/document-types');
+const preview = require('./html-preview');
 
 // Set userData outside of iCloud to avoid sync/cache issues
-app.setPath('userData', path.join(os.homedir(), 'AppData', 'Roaming', 'macno'));
+app.setPath('userData', app.commandLine.getSwitchValue('user-data-dir') ||
+  path.join(os.homedir(), 'AppData', 'Roaming', 'macno'));
+protocol.registerSchemesAsPrivileged([
+  { scheme: preview.scheme, privileges: { standard: true, secure: true } },
+]);
 
 let mainWindow;
-let currentFile = { path: null, modified: false };
+let editorReady = false;
+let allowClose = false;
+let pendingFiles = [];
+let activeFormat = 'markdown';
+const openFilters = [{ name: 'Documents', extensions: Object.values(types).flatMap(type => type.extensions) }];
 const recentFilesPath = path.join(app.getPath('userData'), 'recent.json');
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
@@ -32,7 +44,7 @@ function saveRecent(list) {
   try { fs.writeFileSync(recentFilesPath, JSON.stringify(list)); } catch {}
 }
 function addRecent(filePath) {
-  let list = loadRecent().filter(p => p !== filePath);
+  let list = loadRecent().filter(p => !samePath(p, filePath));
   list.unshift(filePath);
   if (list.length > 20) list = list.slice(0, 20);
   saveRecent(list);
@@ -95,6 +107,7 @@ function rebuildMenu() {
         { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => mainWindow.webContents.send('menu-action', 'save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => mainWindow.webContents.send('menu-action', 'save-as') },
+        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => mainWindow.webContents.send('menu-action', 'close-tab') },
         { type: 'separator' },
         { label: 'Export as PDF…', click: () => mainWindow.webContents.send('menu-action', 'export-pdf') },
         { label: 'Export as HTML…', click: () => mainWindow.webContents.send('menu-action', 'export-html') },
@@ -136,6 +149,7 @@ function rebuildMenu() {
     },
     {
       label: 'Format',
+      enabled: activeFormat === 'markdown',
       submenu: [
         { label: 'Bold', accelerator: 'CmdOrCtrl+B', click: () => mainWindow.webContents.send('menu-action', 'bold') },
         { label: 'Italic', accelerator: 'CmdOrCtrl+I', click: () => mainWindow.webContents.send('menu-action', 'italic') },
@@ -189,7 +203,7 @@ function rebuildMenu() {
 // ---------- File operations ----------
 async function menuOpenFile() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }, { name: 'All Files', extensions: ['*'] }],
+    filters: openFilters,
     properties: ['openFile'],
   });
   if (!result.canceled && result.filePaths[0]) openFileByPath(result.filePaths[0]);
@@ -204,51 +218,46 @@ async function menuOpenFolder() {
   }
 }
 
-// Reads the file and hands it to the renderer, which confirms unsaved changes
-// before applying it (and re-asserts its state via set-current-path/set-modified
-// if the user cancels). Recent-list bookkeeping happens in the renderer too, so
-// only files that actually got opened are recorded.
 function openFileByPath(filePath) {
-  try {
-    const content = fs.readFileSync(filePath, 'utf8');
-    currentFile = { path: filePath, modified: false };
-    setTitle(filePath, false);
-    mainWindow.webContents.send('open-file', { path: filePath, content });
-  } catch (err) {
-    dialog.showErrorBox('Cannot open file', err.message);
-  }
+  const resolved = path.resolve(filePath);
+  if (editorReady) mainWindow.webContents.send('open-file', resolved);
+  else pendingFiles.push(resolved);
 }
 
 // ---------- IPC handlers ----------
-ipcMain.handle('read-file', async (_, filePath) => {
-  return fs.readFileSync(filePath, 'utf8');
+ipcMain.handle('editor-ready', () => {
+  editorReady = true;
+  const files = pendingFiles;
+  pendingFiles = [];
+  return files;
 });
 
-ipcMain.handle('write-file', async (_, { filePath, content }) => {
-  fs.writeFileSync(filePath, content, 'utf8');
-  currentFile = { path: filePath, modified: false };
+ipcMain.handle('read-file', async (_, filePath) => {
+  return readDocument(filePath);
+});
+
+ipcMain.handle('write-file', async (_, { filePath, content, expectedContent }) => {
+  writeDocument(filePath, content, expectedContent);
   addRecent(filePath);
-  setTitle(filePath, false);
   return true;
 });
 
-ipcMain.handle('save-dialog', async (_, defaultPath) => {
+ipcMain.handle('save-dialog', async (_, { defaultPath, type }) => {
+  const format = types[type];
   const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: defaultPath || path.join(os.homedir(), 'Untitled.md'),
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    defaultPath: defaultPath || path.join(os.homedir(), `Untitled.${format.extensions[0]}`),
+    filters: [{ name: format.label, extensions: format.extensions }],
   });
   return result.canceled ? null : result.filePath;
 });
 
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }, { name: 'All Files', extensions: ['*'] }],
+    filters: openFilters,
     properties: ['openFile'],
   });
   if (result.canceled || !result.filePaths[0]) return null;
-  const filePath = result.filePaths[0];
-  const content = fs.readFileSync(filePath, 'utf8');
-  return { path: filePath, content };
+  return result.filePaths[0];
 });
 
 ipcMain.handle('open-folder-dialog', async () => {
@@ -269,13 +278,7 @@ ipcMain.handle('rename-entry', async (_, { rootPath, targetPath, newName }) => {
   const wasDirectory = fs.statSync(sourcePath).isDirectory();
   const newPath = fileOps.renameEntry(rootPath, sourcePath, newName);
   remapRecent(sourcePath, newPath);
-  let currentFilePath = currentFile.path;
-  if (currentFilePath && pathWithin(sourcePath, currentFilePath)) {
-    currentFilePath = rebasePath(currentFilePath, sourcePath, newPath);
-    currentFile.path = currentFilePath;
-    setTitle(currentFilePath, currentFile.modified);
-  }
-  return { oldPath: sourcePath, newPath, isDir: wasDirectory, currentFilePath };
+  return { oldPath: sourcePath, newPath, isDir: wasDirectory };
 });
 
 ipcMain.handle('duplicate-entry', async (_, { rootPath, targetPath }) => {
@@ -294,20 +297,15 @@ ipcMain.handle('trash-entry', async (_, { rootPath, targetPath }) => {
     message: `Move "${path.basename(safePath)}" to the Recycle Bin?`,
     detail: isDir ? 'The folder and everything inside it will be moved.' : 'The file can be restored from the Recycle Bin.',
   });
-  if (response !== 0) return { trashed: false, affectedCurrent: false };
-  const affectedCurrent = Boolean(currentFile.path && pathWithin(safePath, currentFile.path));
+  if (response !== 0) return { trashed: false };
   await shell.trashItem(safePath);
   removeRecentUnder(safePath);
-  if (affectedCurrent) {
-    currentFile = { path: null, modified: true };
-    setTitle(null, true);
-  }
-  return { trashed: true, affectedCurrent, isDir };
+  return { trashed: true, isDir };
 });
 
-ipcMain.handle('copy-path', async (_, { rootPath, targetPath }) => {
-  const safePath = fileOps.assertMutableTarget(rootPath, targetPath);
-  clipboard.writeText(safePath);
+ipcMain.handle('copy-path', async (_, { rootPath, targetPath, relative }) => {
+  const safePath = fileOps.assertMutableTarget(rootPath || path.dirname(targetPath), targetPath);
+  clipboard.writeText(relative ? path.relative(rootPath, safePath) : safePath);
   return true;
 });
 
@@ -319,32 +317,55 @@ ipcMain.handle('get-recent', () => loadRecent());
 
 ipcMain.handle('add-recent', (_, filePath) => { addRecent(filePath); });
 
-ipcMain.handle('set-modified', (_, modified) => {
-  currentFile.modified = modified;
-  setTitle(currentFile.path, modified);
+ipcMain.handle('set-active-document', (_, { filePath, modified, type }) => {
+  setTitle(filePath, modified);
+  if (activeFormat !== type) {
+    activeFormat = type;
+    rebuildMenu();
+  }
 });
 
-ipcMain.handle('set-current-path', (_, filePath) => {
-  currentFile.path = filePath;
-  setTitle(filePath, currentFile.modified);
+ipcMain.handle('finish-close', () => {
+  allowClose = true;
+  mainWindow.close();
 });
+
+ipcMain.handle('create-html-preview', (_, { previousUrl, filePath, source }) =>
+  preview.createPreview(previousUrl, filePath, source));
+ipcMain.handle('release-html-preview', (_, url) => preview.releasePreview(url));
 
 ipcMain.handle('get-settings', () => loadSettings());
 
 ipcMain.handle('save-settings', (_, settings) => saveSettings(settings));
 
-ipcMain.handle('export-pdf', async (_, { defaultName }) => {
+ipcMain.handle('export-pdf', async (_, { defaultName, preview: printPreview }) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: path.join(os.homedir(), defaultName || 'document.pdf'),
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
   if (result.canceled) return null;
-  const data = await mainWindow.webContents.printToPDF({
+  const options = {
     printBackground: true,
     pageSize: 'A4',
     // printToPDF margins are in inches
     margins: { top: 0.6, bottom: 0.6, left: 0.6, right: 0.6 },
-  });
+  };
+  let data;
+  if (printPreview) {
+    const url = preview.createPreview(null, printPreview.filePath, printPreview.source);
+    const printWindow = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+    printWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    printWindow.webContents.on('will-frame-navigate', event => event.preventDefault());
+    try {
+      await printWindow.loadURL(url);
+      data = await printWindow.webContents.printToPDF(options);
+    } finally {
+      printWindow.destroy();
+      preview.releasePreview(url);
+    }
+  } else {
+    data = await mainWindow.webContents.printToPDF(options);
+  }
   fs.writeFileSync(result.filePath, data);
   shell.showItemInFolder(result.filePath);
   return result.filePath;
@@ -361,11 +382,22 @@ ipcMain.handle('export-html', async (_, { html, defaultName }) => {
   return result.filePath;
 });
 
-ipcMain.handle('show-item-in-folder', (_, filePath) => shell.showItemInFolder(filePath));
+ipcMain.handle('show-item-in-folder', (_, filePath) => {
+  if (!fs.existsSync(filePath)) throw new Error('The file no longer exists.');
+  shell.showItemInFolder(filePath);
+});
 
-ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
-
-ipcMain.handle('get-current-file', () => currentFile);
+ipcMain.handle('confirm-copy', async (_, fileName) => {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Save and Create Copy', 'Copy Saved Version', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    title: 'Create a copy?',
+    message: `"${fileName}" has unsaved changes.`,
+  });
+  return response;
+});
 
 // Ask the user what to do with unsaved changes: 0 = Save, 1 = Don't Save, 2 = Cancel
 ipcMain.handle('confirm-discard', async (_, fileName) => {
@@ -445,12 +477,12 @@ app.on('second-instance', (_, argv) => {
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.focus();
-  const argFile = argv.find(a => /\.(md|markdown|txt)$/i.test(a) && !a.includes('node_modules') && fs.existsSync(a));
-  if (argFile) openFileByPath(argFile);
+  argv.filter(a => typeOf(a) && fs.existsSync(a)).forEach(openFileByPath);
 });
 
 app.whenReady().then(() => {
   if (!gotSingleInstanceLock) return;
+  protocol.handle(preview.scheme, preview.servePreview);
   const iconPath = path.join(__dirname, 'assets', 'icon.ico');
   const winOpts = {
     width: 1200,
@@ -469,49 +501,34 @@ app.whenReady().then(() => {
   if (fs.existsSync(iconPath)) winOpts.icon = iconPath;
   mainWindow = new BrowserWindow(winOpts);
 
+  const wc = mainWindow.webContents;
+  wc.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
+  });
+  wc.on('will-frame-navigate', event => {
+    if (!event.isMainFrame && preview.isPreviewEntry(event.url)) return;
+    event.preventDefault();
+    if (!event.isMainFrame) return;
+    try {
+      const filePath = fileURLToPath(event.url);
+      if (typeOf(filePath)) openFileByPath(filePath);
+    } catch { /* only local documents are handled here */ }
+  });
+  wc.on('will-attach-webview', event => event.preventDefault());
+  wc.on('will-prevent-unload', event => { if (allowClose) event.preventDefault(); });
+  wc.session.on('will-download', event => event.preventDefault());
+  process.argv.filter(a => typeOf(a) && fs.existsSync(a)).forEach(openFileByPath);
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    setTitle(null, false);
   });
 
-  mainWindow.on('close', async (e) => {
-    if (currentFile.modified) {
-      e.preventDefault();
-      const choice = await dialog.showMessageBox(mainWindow, {
-        type: 'question',
-        buttons: ['Save', "Don't Save", 'Cancel'],
-        defaultId: 0,
-        cancelId: 2,
-        title: 'Save changes?',
-        message: `"${currentFile.path ? path.basename(currentFile.path) : 'Untitled'}" has unsaved changes.`,
-      });
-      if (choice.response === 0) {
-        mainWindow.webContents.send('menu-action', 'save-then-close');
-      } else if (choice.response === 1) {
-        currentFile.modified = false;
-        mainWindow.close();
-      }
-    }
+  mainWindow.on('close', event => {
+    if (allowClose || !editorReady || wc.isCrashed()) return;
+    event.preventDefault();
+    wc.send('menu-action', 'close-window');
   });
-
-  // The app never navigates away from index.html. If the attempted navigation
-  // is a local Markdown file (e.g. a drop the renderer didn't catch), open it.
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    e.preventDefault();
-    try {
-      if (url.startsWith('file://') && /\.(md|markdown|txt)$/i.test(url)) {
-        openFileByPath(decodeURIComponent(url.replace('file:///', '')));
-      }
-    } catch { /* malformed URL — ignore */ }
-  });
-
-  // Open file passed as command-line argument. First-launch welcome content is
-  // pulled by the renderer via 'get-welcome' and shown as an untitled document.
-  const argFile = process.argv.find(a => /\.(md|markdown|txt)$/i.test(a) && !a.includes('node_modules'));
-  if (argFile && fs.existsSync(argFile)) {
-    openFileByPath(argFile);
-  }
 
   rebuildMenu();
 });
