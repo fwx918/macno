@@ -9,7 +9,7 @@ const path = require('path');
 
 const code = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
 
-let editor = null; // getEditorEl() resolves document.querySelector('.vditor-ir') to this
+let editor = null;
 
 function makeH(text) {
   return {
@@ -53,6 +53,7 @@ vm.runInContext(
   sandbox
 );
 const T = sandbox.__test;
+T.state.currentFile = { mode: 'ir', panel: { querySelector: () => editor } };
 
 // ---- assertions ----
 let pass = 0, fail = 0;

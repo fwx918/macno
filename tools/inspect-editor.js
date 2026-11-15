@@ -10,8 +10,8 @@ const ROOT = path.join(__dirname, '..');
 
 // Stub every channel the renderer invokes during init.
 const handlers = {
-  'get-settings': {}, 'get-recent': [], 'get-current-file': null,
-  'set-modified': true, 'set-current-path': true, 'add-recent': true,
+  'get-settings': {}, 'get-recent': [], 'editor-ready': [],
+  'set-active-document': true, 'add-recent': true,
   'read-file': '', 'read-dir': [], 'get-dir-tree': null,
   'get-welcome': null, 'confirm-discard': 1,
 };

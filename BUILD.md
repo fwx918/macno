@@ -5,7 +5,9 @@ macno is an Electron app, packaged with [electron-builder](https://www.electron.
 ## Quick build (Windows)
 
 ```powershell
-npm install
+npm ci
+npm test
+npm run test:desktop
 npm run build:win
 ```
 
@@ -66,12 +68,28 @@ This writes `assets/icon.ico` (Windows) and `assets/icon.png`. Edit
 
 ## GitHub Actions (automated cloud build)
 
-Pushing a version tag triggers an automated Windows build and publishes the
-`.exe` files to GitHub Releases:
+Pull requests and pushes to `main` run the tests and produce Windows x64
+candidate packages. Download the `macno-windows-x64` artifact from the run for
+the selected commit to check the installer, portable app, and checksums.
+
+After verifying the candidate, tag the selected commit. The tag must match the
+version in both package manifests:
 
 ```powershell
 git tag v1.1.0
 git push origin v1.1.0
 ```
 
+The tag build runs the same tests and package checks, then uploads both
+executables and `SHA256SUMS.txt` to a GitHub Release draft. Download the draft
+attachments, verify their checksums and launch them before publishing the draft.
 See `.github/workflows/build.yml`.
+
+To rerun the package checks on downloaded artifacts, use:
+
+```powershell
+pwsh -File tools/verify-packages.ps1 -Version 1.1.0 -PackageDirectory release
+```
+
+Run installer checks on a dedicated Windows test machine with Administrator
+rights. Pass `-PortableOnly` to test the portable package without elevation.

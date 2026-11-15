@@ -297,6 +297,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.recent-name .file-type-icon { margin-right: 5px; vertical-align: text-bottom; }
 .recent-item .recent-path {
   font-size: 11px;
   color: var(--panel-header-text);
@@ -333,7 +334,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .tree-item.active { background: var(--sidebar-active); }
 .tree-item.stub { color: var(--panel-header-text); font-style: italic; cursor: default; }
 .tree-item.stub:hover { background: transparent; }
-.tree-item .tree-icon { flex-shrink: 0; font-size: 12px; }
+.tree-item .tree-icon { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
 .tree-item .tree-name { overflow: hidden; text-overflow: ellipsis; }
 
 .tree-item.editing { background: var(--sidebar-active); overflow: visible; }
@@ -356,7 +357,16 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .tree-item.is-dir .tree-icon::before { content: '▶'; font-size: 9px; color: var(--panel-header-text); transition: transform 0.15s; display: inline-block; }
 .tree-item.is-dir.open .tree-icon::before { transform: rotate(90deg); }
 
-.file-icon { font-size: 13px; }
+.file-type-icon, .context-menu-icon {
+  display: inline-flex;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  color: var(--icon);
+}
+.file-type-icon svg, .context-menu-icon svg { width: 100%; height: 100%; }
+.active .file-type-icon { color: currentColor; }
 
 .no-folder {
   padding: 20px 12px;
@@ -425,15 +435,103 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 #document-title:not([readonly]):focus { border-bottom-color: var(--sidebar-accent); }
 #document-title[readonly] { cursor: default; color: var(--panel-header-text); }
 
-#editor {
+#document-editors {
   flex: 1;
 }
 
 /* vditor fills its container and grows with content; #editor-wrapper is the
    ONE scroll container (see overflow rules below) so there is a single scrollbar. */
-#editor .vditor {
+.document-editor.vditor {
   min-height: calc(100vh - var(--statusbar-height) - 71px) !important;
 }
+
+#document-tabs {
+  display: flex;
+  flex-shrink: 0;
+  overflow-x: auto;
+  gap: 1px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--sidebar-bg);
+}
+.document-tab {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  max-width: 225px;
+  color: var(--sidebar-text);
+  border-bottom: 2px solid transparent;
+}
+.document-tab.active {
+  background: var(--editor-bg);
+  border-bottom-color: var(--sidebar-accent);
+  color: var(--text);
+}
+.document-tab button, #html-modes button {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.document-tab-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+}
+.document-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-tab-close { margin-right: 4px; width: 21px; height: 22px; border-radius: 4px; }
+.document-tab-close:hover, #html-modes button:hover { background: var(--sidebar-hover); }
+.unsaved-dot { flex: 0 0 6px; height: 6px; border-radius: 50%; background: currentColor; }
+#html-modes { display: flex; gap: 2px; padding: 4px 12px; border-bottom: 1px solid var(--border); }
+#html-modes button { padding: 5px 10px; border-radius: 4px; }
+#html-modes [aria-pressed="true"] { background: var(--sidebar-active); color: var(--text); }
+#editor-wrapper.source-document { overflow: hidden; }
+.source-document #document-title-wrap { padding-top: 14px; padding-bottom: 10px; }
+.source-document #document-title { font-size: 21px; }
+.source-document #document-editors { display: flex; flex: 1; min-height: 0; }
+.source-document .document-editor { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.document-source, .html-preview {
+  display: block;
+  width: 100%;
+  flex: 1;
+  border: 0;
+}
+.html-preview { background: #fff; }
+.document-source {
+  resize: none;
+  color: var(--text);
+  background: var(--editor-bg);
+  font: 14px/1.65 Consolas, monospace;
+  padding: 14px 24px;
+  outline: none;
+}
+#file-toast {
+  position: fixed;
+  bottom: 42px;
+  right: 16px;
+  z-index: 120;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--editor-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+#rename-dialog {
+  background: var(--editor-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: min(360px, 90vw);
+  padding: 16px;
+}
+#rename-dialog::backdrop { background: rgb(0 0 0 / .25); }
+#rename-name { display: block; width: 100%; margin: 8px 0 12px; padding: 5px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ===== Status bar ===== */
 #status-bar {
@@ -713,6 +811,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   cursor: pointer;
 }
 .context-menu-item:hover, .context-menu-item:focus { background: var(--sidebar-hover); outline: none; }
+.context-menu-item:disabled { opacity: .45; cursor: default; background: transparent; }
+.context-menu-arrow { margin-left: auto; }
 .context-menu-item.danger { color: #d93025; }
 .context-menu-icon { width: 16px; text-align: center; color: var(--icon); }
 .context-menu-separator { height: 1px; margin: 4px 2px; background: var(--border); }
@@ -746,7 +846,7 @@ body.drag-over::after {
    printToPDF renders the whole page: hide the app chrome and turn the single
    scroll container into normal flowing content so every page prints. */
 @media print {
-  #sidebar, #resize-handle, #status-bar, #find-bar, #document-title-wrap, #file-context-menu { display: none !important; }
+  #sidebar, #resize-handle, #status-bar, #find-bar, #document-title-wrap, #file-context-menu, #document-tabs, #html-modes, #file-toast { display: none !important; }
   html, body { height: auto; overflow: visible; }
   #app, #main, #editor-wrapper {
     display: block;
