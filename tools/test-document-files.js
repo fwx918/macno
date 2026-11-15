@@ -42,6 +42,7 @@ test('unreadable encodings and changes on disk preserve original files', t => {
   assert.throws(() => readDocument(file), /not UTF-8/);
   fs.writeFileSync(file, '<p>External change</p>');
   assert.throws(() => writeDocument(file, '<p>Current edits</p>', '<p>Old</p>'), /changed on disk/);
+  assert.throws(() => writeDocument(file, '<meta charset="gbk">', '<p>External change</p>'), /charset to UTF-8/);
   assert.equal(readDocument(file), '<p>External change</p>');
   assert.throws(() => writeDocument(directory, 'wrong target'));
   assert.deepEqual(fs.readdirSync(directory), ['index.html']);

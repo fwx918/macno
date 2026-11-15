@@ -15,8 +15,8 @@ foreach ($file in @($installer, $portable)) {
 
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('macno-package-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
-function Test-App($executable, $name) {
-  node "$PSScriptRoot/smoke-package.js" $executable (Join-Path $fixture $name)
+function Test-App($executable, $name, $profileMode = 'new') {
+  node "$PSScriptRoot/smoke-package.js" $executable (Join-Path $fixture $name) $profileMode
   if ($LASTEXITCODE -ne 0) { throw "Smoke test failed for $name" }
 }
 function Install-App($executable, $directory) {
@@ -39,8 +39,14 @@ if (!$PortableOnly) {
     Uninstall-App $installDir
     $upgradeDir = Join-Path $fixture 'upgraded'
     Install-App (Resolve-Path -LiteralPath $UpgradeInstaller).Path $upgradeDir
+    $upgradeFixture = Join-Path $fixture 'upgraded-profile'
+    $profile = Join-Path $upgradeFixture 'profile'
+    New-Item -ItemType Directory -Path $profile | Out-Null
+    '{"theme":"solarized"}' | Set-Content -Encoding utf8 (Join-Path $profile 'settings.json')
+    ,(Join-Path $upgradeFixture 'Existing.txt') | ConvertTo-Json -AsArray -Compress |
+      Set-Content -Encoding utf8 (Join-Path $profile 'recent.json')
     Install-App $installer $upgradeDir
-    Test-App (Join-Path $upgradeDir 'macno.exe') 'upgraded-profile'
+    Test-App (Join-Path $upgradeDir 'macno.exe') 'upgraded-profile' 'existing'
   }
 }
 @($installer, $portable) | ForEach-Object {

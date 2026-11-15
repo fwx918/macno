@@ -39,12 +39,14 @@ async function run() {
   const prompts = [];
   const errors = [];
   let selectedInExplorer;
+  let saveDestination;
   dialog.showErrorBox = (title, message) => errors.push({ title, message });
   dialog.showMessageBox = async (_window, options) => {
     prompts.push(options.title);
     return { response: queuedChoices.length ? queuedChoices.shift() : options.cancelId };
   };
   dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [textPath] });
+  dialog.showSaveDialog = async () => ({ canceled: !saveDestination, filePath: saveDestination });
   shell.showItemInFolder = file => { selectedInExplorer = file; };
   app.commandLine.appendSwitch('user-data-dir', userData);
   process.argv.push(htmlPath);
@@ -96,11 +98,23 @@ async function run() {
   await clickMenuItem('Open in New Tab');
   await waitFor(async () => (await readActive()) === markdownPath, 'Markdown opened in second tab');
   assert.match(await js(() => documentContent()), /# Markdown/);
+  await js(() => toggleSourceMode());
+  assert.equal(await js(() => state.vditor.vditor.currentMode), 'sv');
+  await js(() => toggleSourceMode());
+  assert.equal(await js(() => state.vditor.vditor.currentMode), 'ir');
   await js(() => doMenuOpen());
   assert.equal(await readActive(), textPath);
   assert.equal(await js(() => documentContent()), '# plain *literal*\n');
   assert.deepEqual(await js(() => [...document.querySelectorAll('#document-tabs .file-type-icon')]
     .map(e => e.dataset.type)), ['html', 'markdown', 'text']);
+  for (const theme of ['dark', 'github', 'solarized', 'light']) {
+    assert.equal(await js(value => {
+      applyTheme(value);
+      const icons = [...document.querySelectorAll('#document-tabs .file-type-icon svg path')];
+      return document.documentElement.dataset.theme === value && icons.length === 3 &&
+        new Set(icons.map(icon => icon.getAttribute('d'))).size === 3;
+    }, theme), true);
+  }
 
   await rightClickTree(htmlPath);
   await clickMenuItem('Copy Path');
@@ -145,6 +159,20 @@ async function run() {
   const renamed = path.join(documents, 'Renamed.HTM');
   await waitFor(async () => (await readActive()) === renamed, 'rename updates active path');
   assert.deepEqual(await fs.readFile(renamed), Buffer.from(edited));
+  assert.equal(await js(async oldPath => (await window.api.getRecent()).includes(oldPath), htmlPath), false);
+  await js(async () => { switchPanel('recent'); await loadRecent(); });
+  await js(() => {
+    const row = [...document.querySelectorAll('.recent-item')].find(element =>
+      element.querySelector('.recent-name').textContent === 'Renamed.HTM');
+    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 40, clientY: 100 }));
+  });
+  await clickMenuItem('Copy Path');
+  await clickMenuItem('Full Path');
+  assert.equal(clipboard.readText(), renamed);
+
+  saveDestination = path.join(assets, 'Saved As.html');
+  assert.equal(await js(() => saveFileAs()), true);
+  assert.deepEqual(await fs.readFile(saveDestination), Buffer.from(edited));
   const editAfterRename = await js(() => {
     state.currentFile.source.focus();
     state.currentFile.source.setSelectionRange(0, 0);
@@ -159,7 +187,7 @@ async function run() {
   assert.equal(await js(() => state.currentFile.modified), true);
   queuedChoices.push(2);
   await js(() => closeDocument(state.currentFile));
-  assert.equal(await readActive(), renamed);
+  assert.equal(await readActive(), saveDestination);
   assert.equal(await js(() => state.currentFile.modified), true);
   queuedChoices.push(2);
   win.close();

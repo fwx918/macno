@@ -4,25 +4,30 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { typeOf } = require('./src/document-types');
+const { parse } = require('parse5');
 
 function readDocument(filePath) {
   const data = fs.readFileSync(filePath);
   if (!['html', 'text'].includes(typeOf(filePath))) return data.toString('utf8');
   try {
     const content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data);
-    if (content.includes('\0')) throw new Error('Unexpected null character');
-    if (typeOf(filePath) === 'html') {
-      // Preserve the source, including any charset declaration. Reject legacy
-      // declarations when a future edit could make the file decode incorrectly.
-      const { parse } = require('parse5');
-      const encoding = declaredEncoding(parse(content));
-      if (encoding && !/^utf-?8$/i.test(encoding) && !content.startsWith('\uFEFF')) {
-        throw new Error('Unsupported charset declaration');
-      }
-    }
+    validateSource(filePath, content);
     return content;
   } catch {
     throw new Error('This document is not UTF-8. Convert it to UTF-8 before editing it in macno.');
+  }
+}
+
+function validateSource(filePath, content) {
+  const type = typeOf(filePath);
+  if (['html', 'text'].includes(type) && content.includes('\0')) {
+    throw new Error('The source contains a null character.');
+  }
+  if (type === 'html' && !content.startsWith('\uFEFF')) {
+    const encoding = declaredEncoding(parse(content));
+    if (encoding && !/^utf-?8$/i.test(encoding)) {
+      throw new Error('Set the HTML charset to UTF-8 before saving.');
+    }
   }
 }
 
@@ -42,6 +47,7 @@ function declaredEncoding(node) {
 }
 
 function writeDocument(filePath, content, expectedContent) {
+  validateSource(filePath, content);
   // Edit the target of an existing symlink without replacing the link itself.
   let destination = filePath;
   try { destination = fs.realpathSync(filePath); }

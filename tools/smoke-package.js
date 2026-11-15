@@ -17,16 +17,18 @@ async function waitFor(check, label) {
 }
 
 async function main() {
-  const [executable, fixture] = process.argv.slice(2);
+  const [executable, fixture, profileMode] = process.argv.slice(2);
   const document = path.resolve(fixture, '验证 文档.HTM');
   const recent = path.resolve(fixture, 'Existing.txt');
   const profile = path.resolve(fixture, 'profile');
   const sample = '<!doctype html>\r\n<h1>Windows package smoke</h1>\r\n';
-  await fs.mkdir(profile, { recursive: true });
+  if (profileMode !== 'existing') {
+    await fs.mkdir(profile, { recursive: true });
+    await fs.writeFile(path.join(profile, 'settings.json'), JSON.stringify({ theme: 'solarized' }));
+    await fs.writeFile(path.join(profile, 'recent.json'), JSON.stringify([recent]));
+  }
   await fs.writeFile(document, sample);
   await fs.writeFile(recent, 'Existing document');
-  await fs.writeFile(path.join(profile, 'settings.json'), JSON.stringify({ theme: 'solarized' }));
-  await fs.writeFile(path.join(profile, 'recent.json'), JSON.stringify([recent]));
   await fs.rm(path.join(profile, 'DevToolsActivePort'), { force: true });
   const app = spawn(executable, ['--remote-debugging-port=0', '--user-data-dir=' + profile, document], {
     windowsHide: true, stdio: 'ignore',

@@ -64,7 +64,7 @@ app.whenReady().then(async () => {
   await sleep(600);
 
   const report = await win.webContents.executeJavaScript(`(() => {
-    const sels = ['#editor-wrapper','#editor','.vditor','.vditor-content','.vditor-ir','.vditor-reset'];
+    const sels = ['#editor-wrapper','#document-editors','.vditor','.vditor-content','.vditor-ir','.vditor-reset'];
     const out = { winInner: innerWidth + 'x' + innerHeight, chain: {}, suspects: [] };
     sels.forEach(s => {
       const el = document.querySelector(s);
